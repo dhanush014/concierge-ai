@@ -49,7 +49,8 @@ curl -s "$SUPABASE_URL/auth/v1/token?grant_type=password" -H "apikey: $SUPABASE_
 
 Paste it into **Authorize** on the docs page.
 
-**Web** (Next.js, http://localhost:3000):
+**Web** (Next.js, http://localhost:3000). Reads the `NEXT_PUBLIC_*` values from the root `.env`.
+Sign in with a demo login printed by the seed script: patients land on `/portal`, staff on `/staff`.
 
 ```bash
 cd web
