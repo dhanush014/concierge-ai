@@ -13,6 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 
+from app import storage
 from app.db import database_url
 from app.main import app
 from tests.supabase_auth import SupabaseAuth
@@ -129,6 +130,12 @@ class Factory:
         )
         self.db.execute("delete from public.slots where doctor_id = any(%s)", (self.doctor_ids,))
         self.db.execute("delete from public.doctors where id = any(%s)", (self.doctor_ids,))
+        docs = self.db.execute(
+            "delete from public.documents where patient_id = any(%s) returning storage_path",
+            (self.patient_ids,),
+        ).fetchall()
+        for doc in docs:
+            storage.remove(doc["storage_path"])
         for user_id in self.user_ids:  # also deletes their profiles (on delete cascade)
             self.auth.delete_user(user_id)
         self.db.execute("delete from public.patients where id = any(%s)", (self.patient_ids,))

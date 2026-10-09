@@ -41,3 +41,17 @@ class BookRequest(BaseModel):
 
 class RescheduleRequest(BaseModel):
     new_slot_id: UUID
+
+
+class Document(BaseModel):
+    id: UUID
+    kind: Literal["insurance_card", "referral"]
+    original_filename: str
+    content_type: str
+    size_bytes: int
+    created_at: datetime
+
+
+class SignedUrl(BaseModel):
+    url: str
+    expires_in: int
