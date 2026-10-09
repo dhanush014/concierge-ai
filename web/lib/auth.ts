@@ -29,7 +29,7 @@ export function userFromClaims(claims: Record<string, unknown> | null | undefine
 }
 
 export function homeFor(role: Role): string {
-  return role === "staff" ? "/staff" : "/portal";
+  return role === "staff" ? "/staff" : "/portal/appointments";
 }
 
 /**

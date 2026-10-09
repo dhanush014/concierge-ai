@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { AppointmentsView } from "./appointments-view";
 
 export const metadata: Metadata = { title: "Appointments" };
 
-// Built in the next step.
 export default function AppointmentsPage() {
   return (
-    <>
-      <h1 className="mb-4 text-3xl font-semibold">Appointments</h1>
-      <p className="text-lg text-muted">Your appointments will appear here.</p>
-    </>
+    <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <AppointmentsView />
+    </Suspense>
   );
 }

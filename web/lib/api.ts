@@ -2,7 +2,10 @@ import { createClient } from "@/lib/supabase/browser";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-/** An error response from the FastAPI backend. `detail` is its error code, e.g. "slot_not_open". */
+/**
+ * An error from the FastAPI backend. `detail` is its error code, e.g. "slot_not_open".
+ * status 0 means no response at all (network failure).
+ */
 export class ApiError extends Error {
   constructor(
     public readonly status: number,
@@ -34,7 +37,13 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     headers.set("Content-Type", "application/json");
   }
 
-  const resp = await fetch(`${API_URL}${path}`, { ...init, headers });
+  let resp: Response;
+  try {
+    resp = await fetch(`${API_URL}${path}`, { ...init, headers });
+  } catch {
+    // Server down, offline, or CORS failure. Status 0 = "no response".
+    throw new ApiError(0, "network");
+  }
   if (!resp.ok) {
     const body: unknown = await resp.json().catch(() => null);
     throw new ApiError(resp.status, errorDetail(body, resp.statusText));

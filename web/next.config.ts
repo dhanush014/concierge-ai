@@ -20,6 +20,9 @@ function rootPublicEnv(): Record<string, string> {
 
 const nextConfig: NextConfig = {
   env: rootPublicEnv(),
+  async redirects() {
+    return [{ source: "/portal", destination: "/portal/appointments", permanent: false }];
+  },
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

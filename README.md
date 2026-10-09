@@ -52,6 +52,17 @@ Paste it into **Authorize** on the docs page.
 **Web** (Next.js, http://localhost:3000). Reads the `NEXT_PUBLIC_*` values from the root `.env`.
 Sign in with a demo login printed by the seed script: patients land on `/portal`, staff on `/staff`.
 
+**End-to-end tests** (Playwright; needs `supabase start` and the seed run once):
+
+```bash
+cd web
+npx playwright install chromium   # first time only
+npm run test:e2e
+```
+
+They start the API and web servers if needed, create their own "Dr. E2E …" doctor and slots,
+and delete them afterwards (leftovers from a crashed run are removed at the start).
+
 ```bash
 cd web
 npm install
