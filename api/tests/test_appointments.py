@@ -196,16 +196,6 @@ def test_book_taken_slot_is_409(client: TestClient, make: Factory) -> None:
     assert (resp.status_code, resp.json()["detail"]) == (409, "slot_not_open")
 
 
-def test_missing_or_unknown_patient_is_401(client: TestClient) -> None:
-    no_header = client.get("/me/appointments")
-    bad_id = client.get("/me/appointments", headers={"X-Patient-Id": "not-a-uuid"})
-    unknown = client.get(
-        "/me/appointments", headers={"X-Patient-Id": "00000000-0000-0000-0000-000000000000"}
-    )
-
-    assert [r.status_code for r in (no_header, bad_id, unknown)] == [401, 401, 401]
-
-
 def test_unexpected_db_error_is_generic_500(client: TestClient, db: psycopg.Connection, caplog) -> None:
     class BrokenConn:
         """Runs a query that fails with a real Postgres error."""

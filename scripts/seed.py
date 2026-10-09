@@ -6,8 +6,8 @@
 
 Run from anywhere:  uv run scripts/seed.py
 
-Clears the four tables and re-inserts everything in one transaction, so running it
-twice gives the same counts. Ids are derived from the source data, so they are stable
+Clears the tables and re-inserts everything in one transaction, so running it twice
+gives the same counts. Then creates the demo logins (see seed_auth.py). Ids are derived from the source data, so they are stable
 across runs. Appointments are inserted directly (book_slot rejects past slots).
 """
 
@@ -23,6 +23,8 @@ from zoneinfo import ZoneInfo
 
 import psycopg
 
+from seed_auth import DemoLogin, email_for, seed_logins
+
 ROOT = Path(__file__).resolve().parents[1]
 SYNTHEA_DIR = ROOT / "data" / "synthea"
 DOCTORS_FILE = ROOT / "data" / "doctors.json"
@@ -35,8 +37,9 @@ DAYS_BACK = DAYS_AHEAD = 30
 RANDOM_SEED = 42
 ID_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "concierge-ai")
 
-# (first_name, last_name) after stripping Synthea's digits.
+# (first_name, last_name) after stripping Synthea's digits. Each gets a patient login.
 DEMO_PATIENTS = [("Aja", "Casper"), ("Bart", "Brekke")]
+DEMO_STAFF = [("Nurse", "Kim")]
 
 
 @dataclass
@@ -207,7 +210,10 @@ def main() -> None:
 
     with psycopg.connect(db_url) as conn, conn.cursor() as cur:
         # One transaction: either everything is replaced or nothing changes.
-        cur.execute("truncate public.appointments, public.slots, public.doctors, public.patients")
+        cur.execute(
+            "truncate public.profiles, public.appointments, public.slots,"
+            " public.doctors, public.patients"
+        )
         cur.executemany(
             "insert into public.patients (id, synthea_id, first_name, last_name, birth_date)"
             " values (%s, %s, %s, %s, %s)",
@@ -229,12 +235,33 @@ def main() -> None:
         )
         conn.commit()
 
+        logins = demo_logins(patients)
+        seed_logins(conn, logins)
+
         print_summary(cur, patients, appointments, now)
+        print_logins(logins)
+
+
+def demo_logins(patients: list[Patient]) -> list[DemoLogin]:
+    by_name = {(p.first_name, p.last_name): p for p in patients}
+    logins = [
+        DemoLogin(email_for(f, l), "patient", f"{f} {l}", by_name[(f, l)].id)
+        for f, l in DEMO_PATIENTS
+    ]
+    logins += [DemoLogin(email_for(f, l), "staff", f"{f} {l}") for f, l in DEMO_STAFF]
+    return logins
+
+
+def print_logins(logins: list[DemoLogin]) -> None:
+    print("\nDemo logins (password: DEMO_PASSWORD in .env):")
+    for login in logins:
+        link = f"  patient_id={login.patient_id}" if login.patient_id else ""
+        print(f"  {login.role:<8} {login.email:<34} user_id={login.user_id}{link}")
 
 
 def print_summary(cur: psycopg.Cursor, patients, appointments, now: datetime) -> None:
     print("Seeded:")
-    for table in ("patients", "doctors", "slots", "appointments"):
+    for table in ("patients", "doctors", "slots", "appointments", "profiles"):
         cur.execute(f"select count(*) from public.{table}")
         print(f"  {table:<18}{cur.fetchone()[0]:>6}")
     cur.execute("select count(*) from public.open_slots")

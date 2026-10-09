@@ -36,8 +36,18 @@ Reseed before a demo: slots and "upcoming" appointments are relative to the day 
 cd api && uv run pytest
 ```
 
-API docs: http://localhost:8000/docs. Until login exists (Phase 2), send `X-Patient-Id`
-with a patient id printed by the seed script.
+API docs: http://localhost:8000/docs. Patient routes need a Supabase access token.
+The seed script creates demo logins (password is `DEMO_PASSWORD` in `.env`). Get a token:
+
+```bash
+set -a; source .env; set +a
+curl -s "$SUPABASE_URL/auth/v1/token?grant_type=password" -H "apikey: $SUPABASE_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"email\":\"aja.casper@demo.concierge.test\",\"password\":\"$DEMO_PASSWORD\"}" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])'
+```
+
+Paste it into **Authorize** on the docs page.
 
 **Web** (Next.js, http://localhost:3000):
 

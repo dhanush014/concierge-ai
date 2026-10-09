@@ -4,7 +4,7 @@ Concierge AI: a hospital patient portal with appointments, an insurance card che
 
 ## Current phase
 
-Phase 1. (Update this line at the start of each phase.)
+Phase 2. (Update this line at the start of each phase.)
 
 ## How to work
 
