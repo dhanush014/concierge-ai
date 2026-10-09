@@ -23,7 +23,8 @@ readable text, no decoration.
 ## Core flows
 
 ### 1. Appointments (deterministic, NO AI)
-- Each doctor has slots per day. A slot is `open` or `booked`.
+- Each doctor has slots per day. A slot is open when it is in the future and has no
+  `booked` appointment (the `open_slots` view). Slots have no status column.
 - View: patient's upcoming and past appointments.
 - Book: pick doctor and visit type, see open future slots, pick one.
 - Reschedule: show open future slots for the same doctor and visit type; swap in one
@@ -74,7 +75,9 @@ message -> safety check -> route -> tool or RAG -> answer with sources
 profiles           id (auth user), role ('patient'|'staff'), patient_id, display_name
 patients           id, synthea_id, first_name, last_name, birth_date
 doctors            id, name, specialty
-slots              id, doctor_id, start_at (UTC), end_at, visit_type, status ('open'|'booked')
+slots              id, doctor_id, start_at (UTC), end_at, visit_type
+                   unique (doctor_id, start_at)
+open_slots (view)  slots in the future with no 'booked' appointment
 appointments       id, patient_id, slot_id (unique while active), status ('booked'|'cancelled'), created_at
 network_contracts  id, payer, plan_name, in_network (bool), notes
 patient_insurance  id, patient_id, payer, plan_name, member_id, group_number,
