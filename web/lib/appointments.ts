@@ -97,11 +97,4 @@ export function messageFor(error: unknown): string {
   }
 }
 
-/** 500s and network failures: worth a Retry button. */
-export function isRetryable(error: unknown): boolean {
-  return !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
-}
-
-export function isStatus(error: unknown, status: number): boolean {
-  return error instanceof ApiError && error.status === status;
-}
+export { isRetryable, isStatus } from "@/lib/api";

@@ -12,7 +12,7 @@ export async function AccountBar({ role }: { role: Role }) {
       <form action={signOut}>
         <button
           type="submit"
-          className="rounded-md border border-accent px-4 py-2 font-medium text-accent hover:bg-accent-soft"
+          className="whitespace-nowrap rounded-md border border-accent px-4 py-2 font-medium text-accent hover:bg-accent-soft"
         >
           Sign out
         </button>

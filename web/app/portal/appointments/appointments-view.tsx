@@ -149,6 +149,7 @@ export function AppointmentsView() {
         }
         cancelLabel="Keep appointment"
         confirmLabel="Cancel appointment"
+        pendingLabel="Cancelling…"
         pending={pending}
         onConfirm={confirmCancel}
         onClose={closeDialog}

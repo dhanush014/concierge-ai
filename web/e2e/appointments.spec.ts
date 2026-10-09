@@ -145,6 +145,7 @@ test("8. Phone width (375px): no sideways scrolling", async ({ page }) => {
   const pages = [
     "/portal/appointments",
     "/portal/appointments/book",
+    "/portal/documents",
     bookUrl(),
     bookUrl({ slot: world.slots.consult.id, type: "Consult" }),
   ];

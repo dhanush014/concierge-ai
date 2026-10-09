@@ -33,7 +33,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 
   const headers = new Headers(init.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (init.body !== undefined && !headers.has("Content-Type")) {
+  // JSON for string bodies. FormData (file uploads) sets its own multipart header.
+  if (typeof init.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -48,5 +49,15 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     const body: unknown = await resp.json().catch(() => null);
     throw new ApiError(resp.status, errorDetail(body, resp.statusText));
   }
+  if (resp.status === 204) return undefined as T; // No Content (e.g. DELETE)
   return (await resp.json()) as T;
+}
+
+/** 500s and network failures: worth a Retry button. */
+export function isRetryable(error: unknown): boolean {
+  return !(error instanceof ApiError) || error.status === 0 || error.status >= 500;
+}
+
+export function isStatus(error: unknown, status: number): boolean {
+  return error instanceof ApiError && error.status === status;
 }

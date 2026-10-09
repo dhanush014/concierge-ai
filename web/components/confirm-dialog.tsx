@@ -7,6 +7,8 @@ type Props = {
   message: string;
   confirmLabel: string;
   cancelLabel: string;
+  /** Confirm button text while the request runs, e.g. "Deleting…". */
+  pendingLabel: string;
   pending: boolean;
   onConfirm: () => void;
   /** Called on Escape, the cancel button, or after the dialog closes. */
@@ -17,7 +19,16 @@ type Props = {
  * Native modal <dialog>: the rest of the page is inert while it is open (focus stays
  * inside) and Escape closes it. The parent returns focus to the opener in onClose.
  */
-export function ConfirmDialog({ open, message, confirmLabel, cancelLabel, pending, onConfirm, onClose }: Props) {
+export function ConfirmDialog({
+  open,
+  message,
+  confirmLabel,
+  cancelLabel,
+  pendingLabel,
+  pending,
+  onConfirm,
+  onClose,
+}: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -57,7 +68,7 @@ export function ConfirmDialog({ open, message, confirmLabel, cancelLabel, pendin
           onClick={onConfirm}
           className="min-h-11 rounded-md bg-danger px-5 font-semibold text-white disabled:opacity-70"
         >
-          {pending ? "Cancelling…" : confirmLabel}
+          {pending ? pendingLabel : confirmLabel}
         </button>
       </div>
     </dialog>

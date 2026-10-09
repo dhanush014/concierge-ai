@@ -56,6 +56,25 @@ export async function purgeE2EDoctors(): Promise<number> {
   return doctors.length;
 }
 
+/** Delete a patient's "e2e-…" documents: the stored files, then the rows. Returns how many. */
+export async function purgeE2EDocuments(email: string = AJA): Promise<number> {
+  const { userId } = await signIn(email);
+  const [profile] = await rest<{ patient_id: string }[]>("GET", `profiles?select=patient_id&id=eq.${userId}`);
+  const docs = await rest<{ id: string; storage_path: string }[]>(
+    "GET",
+    `documents?select=id,storage_path&patient_id=eq.${profile.patient_id}&original_filename=like.e2e-*`,
+  );
+  if (docs.length === 0) return 0;
+  const resp = await fetch(`${SUPABASE_URL}/storage/v1/object/patient-docs`, {
+    method: "DELETE",
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ prefixes: docs.map((d) => d.storage_path) }),
+  });
+  if (!resp.ok) throw new Error(`storage delete: ${resp.status} ${await resp.text()}`);
+  await rest("DELETE", `documents?id=in.(${docs.map((d) => d.id).join(",")})`);
+  return docs.length;
+}
+
 export async function signIn(email: string): Promise<{ token: string; userId: string }> {
   const resp = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
     method: "POST",
