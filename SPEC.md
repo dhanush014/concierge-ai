@@ -82,7 +82,9 @@ appointments       id, patient_id, slot_id (unique while active), status ('booke
 network_contracts  id, payer, plan_name, in_network (bool), notes
 patient_insurance  id, patient_id, payer, plan_name, member_id, group_number,
                    card_path (Storage), status ('extracted'|'confirmed'), created_at
-documents          id, patient_id, kind ('insurance_card'|'referral'), storage_path, created_at
+documents          id, patient_id, kind ('insurance_card'|'referral'), storage_path, created_at,
+                   original_filename (sanitized, max 200), content_type (jpeg|png|pdf), size_bytes (<= 10 MB)
+                   file in private Storage bucket patient-docs at <patient_id>/<document_id>.<ext>
 chunks             id, content, embedding vector(384), source_type ('policy'|'record'),
                    patient_id (null for policy), payer (null unless contract doc),
                    doc_title, section, date, sensitive (bool), content_hash
