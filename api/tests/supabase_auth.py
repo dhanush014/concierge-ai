@@ -19,8 +19,8 @@ class SupabaseAuth:
     def _admin_headers(self) -> dict[str, str]:
         return {"apikey": self.service_key, "Authorization": f"Bearer {self.service_key}"}
 
-    def create_user_and_sign_in(self, email: str) -> tuple[str, str]:
-        """Returns (user_id, access_token)."""
+    def create_user(self, email: str) -> tuple[str, str]:
+        """Returns (user_id, password)."""
         password = secrets.token_urlsafe(16)
         resp = self.http.post(
             f"{self.url}/admin/users",
@@ -28,15 +28,17 @@ class SupabaseAuth:
             json={"email": email, "password": password, "email_confirm": True},
         )
         resp.raise_for_status()
-        user_id = resp.json()["id"]
+        return resp.json()["id"], password
 
+    def sign_in(self, email: str, password: str) -> str:
+        """Returns a real access token (the role claim is added at this point)."""
         resp = self.http.post(
             f"{self.url}/token?grant_type=password",
             headers={"apikey": self.anon_key},
             json={"email": email, "password": password},
         )
         resp.raise_for_status()
-        return user_id, resp.json()["access_token"]
+        return resp.json()["access_token"]
 
     def delete_user(self, user_id: str) -> None:
         self.http.delete(f"{self.url}/admin/users/{user_id}", headers=self._admin_headers())

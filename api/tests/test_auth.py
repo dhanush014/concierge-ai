@@ -100,6 +100,13 @@ def test_staff_token_is_403_on_patient_routes(client: TestClient, make: Factory)
     assert (booked.status_code, booked.json()["detail"]) == (403, "patients_only")
 
 
+def test_tokens_carry_user_role_claim(make: Factory) -> None:
+    """The custom access token hook copies profiles.role into the token for the web app."""
+    patient_claims = jwt.decode(TOKENS[make.patient()], options={"verify_signature": False})
+    staff_claims = jwt.decode(make.staff_token(), options={"verify_signature": False})
+    assert (patient_claims["user_role"], staff_claims["user_role"]) == ("patient", "staff")
+
+
 def test_patient_token_reaches_own_appointments(client: TestClient, make: Factory) -> None:
     resp = client.get("/me/appointments", headers=as_patient(make.patient()))
     assert (resp.status_code, resp.json()) == (200, [])

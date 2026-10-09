@@ -57,18 +57,23 @@ class Factory:
         self.patient_ids: list[uuid.UUID] = []
         self.user_ids: list[str] = []
 
-    def _login(self, label: str) -> tuple[str, str]:
-        email = f"test-{self.tag}-{label}-{len(self.user_ids)}@example.test"
-        user_id, token = self.auth.create_user_and_sign_in(email)
-        self.user_ids.append(user_id)
-        return user_id, token
+    def _login(
+        self, label: str, role: str | None = None, patient_id: uuid.UUID | None = None
+    ) -> tuple[str, str]:
+        """Create an auth user (+ profile when role is given), then sign in.
 
-    def _profile(self, user_id: str, role: str, patient_id: uuid.UUID | None) -> None:
-        self.db.execute(
-            "insert into public.profiles (id, role, patient_id, display_name)"
-            " values (%s, %s, %s, %s)",
-            (user_id, role, patient_id, f"Test {role}"),
-        )
+        The profile must exist before sign-in so the token gets its user_role claim.
+        """
+        email = f"test-{self.tag}-{label}-{len(self.user_ids)}@example.test"
+        user_id, password = self.auth.create_user(email)
+        self.user_ids.append(user_id)
+        if role is not None:
+            self.db.execute(
+                "insert into public.profiles (id, role, patient_id, display_name)"
+                " values (%s, %s, %s, %s)",
+                (user_id, role, patient_id, f"Test {role}"),
+            )
+        return user_id, self.auth.sign_in(email, password)
 
     def doctor(self, specialty: str = "Test Medicine") -> uuid.UUID:
         row = self.db.execute(
@@ -87,14 +92,11 @@ class Factory:
         ).fetchone()
         patient_id = row["id"]
         self.patient_ids.append(patient_id)
-        user_id, TOKENS[patient_id] = self._login("patient")
-        self._profile(user_id, "patient", patient_id)
+        _, TOKENS[patient_id] = self._login("patient", "patient", patient_id)
         return patient_id
 
     def staff_token(self) -> str:
-        user_id, token = self._login("staff")
-        self._profile(user_id, "staff", None)
-        return token
+        return self._login("staff", "staff")[1]
 
     def token_without_profile(self) -> str:
         return self._login("noprofile")[1]
