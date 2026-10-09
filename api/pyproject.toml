@@ -1,0 +1,9 @@
+[project]
+name = "api"
+version = "0.1.0"
+description = "Concierge AI backend: FastAPI + LangGraph"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.143.0",
+    "uvicorn[standard]>=0.54.0",
+]
