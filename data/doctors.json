@@ -1,0 +1,10 @@
+[
+  {"name": "Dr. Maya Patel",      "specialty": "Family Medicine",   "visit_types": ["Annual physical", "Sick visit"]},
+  {"name": "Dr. James Okafor",    "specialty": "Internal Medicine", "visit_types": ["New patient", "Follow-up"]},
+  {"name": "Dr. Elena Rossi",     "specialty": "Cardiology",        "visit_types": ["New patient", "Follow-up"]},
+  {"name": "Dr. Daniel Kim",      "specialty": "Dermatology",       "visit_types": ["Skin check"]},
+  {"name": "Dr. Sarah Lindqvist", "specialty": "Endocrinology",     "visit_types": ["New patient", "Diabetes follow-up"]},
+  {"name": "Dr. Marcus Reed",     "specialty": "Orthopedics",       "visit_types": ["New patient", "Follow-up"]},
+  {"name": "Dr. Aisha Rahman",    "specialty": "OB/GYN",            "visit_types": ["Annual exam", "Prenatal visit"]},
+  {"name": "Dr. Tom Becker",      "specialty": "Pediatrics",        "visit_types": ["Well-child visit", "Sick visit"]}
+]
