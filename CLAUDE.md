@@ -49,6 +49,7 @@ cd web && npm run dev
 * In-network checks are a database lookup. The LLM never decides coverage yes/no.
 * Never hard-code demo data in app code. Seed data lives in `scripts/` only.
 * Secrets only in `.env` (gitignored). Keep `.env.example` up to date.
+* Never read secrets or files outside this repo without asking first.
 * Every API endpoint gets at least one pytest test.
 * Every file path resolved relative to the file, so scripts run from any folder.
 * The agent never gives medical advice or interprets results. When in doubt, hand off.

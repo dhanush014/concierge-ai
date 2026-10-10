@@ -42,7 +42,7 @@ def test_curly_apostrophe_still_matches() -> None:
 @pytest.mark.parametrize("category", ["emergency", "clinical", "wants_human", "ok"])
 def test_llm_verdict_wins(fake_llm: FakeLLM, category: str) -> None:
     fake_llm.replies["safety"] = verdict(category, "because")
-    result = safety.check("the left side of my face is drooping")
+    result = safety.check("please look at what I sent earlier")  # no regex hits at all
     assert (result.category, result.source, result.reason) == (category, "llm", "because")
 
 
@@ -102,3 +102,82 @@ def test_no_case_is_in_the_prompt() -> None:
     prompt = SAFETY_PROMPT.lower()
     leaked = [c["text"] for c in CASES if c["text"].lower() in prompt]
     assert leaked == []
+
+
+# --- fail safe: an LLM outage never lets an emergency/clinical keyword pass as ok ---
+
+@pytest.fixture
+def llm_times_out(fake_llm: FakeLLM, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Real timeout path: the future isn't done within the (tiny) budget."""
+    monkeypatch.setattr(config, "SAFETY_TIMEOUT_SECONDS", 0.001)
+    fake_llm.delays["safety"] = 0.05
+
+
+@pytest.mark.parametrize(
+    ("text", "category"),
+    [
+        ("when is my follow-up at the stroke clinic", "emergency"),
+        ("I had a heart attack last year", "emergency"),
+        ("my seizure medication", "emergency"),
+        ("is that an overdose", "emergency"),
+        ("can you help me", "clinical"),
+        ("my back pain is back", "clinical"),
+        ("can I skip my dose this week", "clinical"),
+        ("is this a serious problem", "clinical"),
+    ],
+)
+def test_keywords_escalate_when_llm_times_out(llm_times_out, text: str, category: str) -> None:
+    result = safety.check(text)
+    assert (result.category, result.source) == (category, "regex_fallback")
+
+
+ESCALATE_CASES = [c for c in CASES if c["expected"] in ("emergency", "clinical")]
+
+
+@pytest.mark.parametrize("case", ESCALATE_CASES, ids=lambda c: c["text"][:40])
+def test_every_escalate_case_escalates_when_llm_times_out(llm_times_out, case: dict) -> None:
+    result = safety.check(case["text"])
+    assert result.category != "ok", f"{case['text']!r} passed as ok during an LLM outage"
+    if case["expected"] == "emergency":
+        assert result.category == "emergency"
+
+
+@pytest.mark.parametrize("case", ESCALATE_CASES, ids=lambda c: c["text"][:40])
+def test_every_escalate_case_escalates_when_llm_errors(fake_llm: FakeLLM, case: dict) -> None:
+    fake_llm.errors["safety"] = RuntimeError("groq down")
+    assert safety.check(case["text"]).category != "ok"
+
+
+# --- stroke warning signs never depend on the LLM ---
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "the left side of my face is drooping",
+        "my dad's mouth is drooping on one side",
+        "she has a droopy face",
+        "my speech is slurred",
+        "he's slurring his words",
+        "sudden weakness in my right arm",
+        "my leg suddenly went numb",
+        "my arm went weak all of a sudden",
+        "I can't lift my arm",
+        "my mom is suddenly confused",
+        "he got confused all of a sudden",
+        "I suddenly can't speak",
+    ],
+)
+def test_stroke_signs_are_strict_emergencies(fake_llm: FakeLLM, text: str) -> None:
+    fake_llm.replies["safety"] = verdict("ok")  # even an LLM saying ok can't overrule
+    result = safety.check(text)
+    assert (result.category, result.source) == ("emergency", "regex")
+    assert fake_llm.calls("safety") == 0
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["I'm confused about my bill", "my arm is sore from the flu shot", "the wifi signal is weak here"],
+)
+def test_stroke_rules_ignore_lookalikes(text: str) -> None:
+    match = safety.strict_match(text)
+    assert match is None or match[0] != "emergency"

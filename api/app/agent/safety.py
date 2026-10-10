@@ -3,7 +3,9 @@
 Cascade, ported from the old prototype (guardrail.py):
 1. Strict regex. A match decides immediately, no LLM call.
 2. Loose regex flags the message, then the LLM decides (its verdict wins either way).
-3. If the LLM errors, times out or returns junk, the loose-regex flag decides.
+3. If the LLM errors, times out or returns junk, the loose-regex flag decides. Fail
+   safe: every emergency or clinical keyword is in STRICT or LOOSE, so an outage
+   escalates those messages instead of letting them through as ok.
 
 Categories, most cautious first: emergency > clinical > wants_human > ok.
 """
@@ -43,6 +45,17 @@ STRICT: dict[Category, list[str]] = {
         r"\b(kill|hurt|harm|cut) myself\b",
         r"\b(suicide|suicidal|end my life|want to die)\b",
         r"\b(this is|it'?s|having) an emergency\b",
+        # Stroke warning signs (BE FAST): face drooping, slurred speech, sudden arm or
+        # leg weakness, sudden confusion. Never left to the LLM.
+        r"\b(face|mouth|smile|eyelid)\b[\w\s]{0,20}\bdroop(s|ing|y|ed)?\b",
+        r"\bdroop(ing|y)\b[\w\s]{0,10}\b(face|mouth|smile)\b",
+        r"\bslurr(ed|ing)\b",
+        r"\bsudden(ly)?\b[\w\s]{0,30}\b(weak|weakness|numb|numbness|limp)\b",
+        r"\b(weak|weakness|numb|numbness|limp)\b[\w\s]{0,30}\b(all of a )?sudden(ly)?\b",
+        r"\bcan'?t (move|lift|feel) my (arm|leg|hand|face)\b",
+        r"\bsudden(ly)?\b[\w\s]{0,20}\bconfus(ed|ion)\b",
+        r"\bconfus(ed|ion)\b[\w\s]{0,20}\b(all of a )?sudden(ly)?\b",
+        r"\bsudden(ly)?\b[\w\s]{0,15}\b(can'?t|cannot) (speak|talk|see|walk)\b",
     ],
     "clinical": [
         r"\bi\s?(have|'ve had|am having|'m having)\b[\w\s]{0,20}\b(pain|ache|fever|rash|swelling)\b",
@@ -88,6 +101,14 @@ LOOSE: dict[Category, list[str]] = {
         r"\b(worried|anxious|nervous)\b about",
         r"\bi'?m\b (really |very )?\b(worried|scared|anxious)\b",
         r"\bhelp me\b",
+        # Added so the fallback catches what the prototype's loose list missed.
+        r"\bwhat does\b[\w\s]{0,40}\bmean\b",
+        r"\bwhy (is|are|does|did|do)\b[\w\s]{0,30}\b(up|down|high|low|rising|dropping|changing|worse)\b",
+        r"\bis my [\w\s]{1,30} (better|worse|improving|improved|good)\b",
+        r"\b(worry|worried|worrying|serious|concerned)\b",
+        r"\b(dose|doses|dosage)\b",
+        r"\b(skip|stop|double)\b[\w\s]{0,20}\b(medication|meds|pills?)\b",
+        r"\b(pain|ache|aching|fever|rash|swelling|swollen|cough|nausea|headache|migraine|infection|lump|numb|tingling)\b",
     ],
     "wants_human": [
         r"\b(someone|somebody|a person|a human)\b",
