@@ -93,6 +93,10 @@ messages           id, conversation_id, sender ('patient'|'assistant'|'staff'), 
 handoffs           id, conversation_id, reason, summary, status ('open'|'active'|'closed'),
                    staff_id, created_at, closed_at
 ```
+Schema `langgraph`: LangGraph's Postgres checkpointer (graph state per conversation,
+thread id = conversation id). Its tables are created and upgraded by the library's
+`setup()`; only the schema comes from a migration. Never exposed to the browser.
+
 Row-level security: a patient can read only rows with their own `patient_id`. Staff can
 read handoffs, conversations, messages.
 

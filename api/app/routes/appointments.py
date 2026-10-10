@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends
 from app.db import Conn
 from app.deps import get_current_patient
 from app.models import Appointment, BookRequest, Doctor, RescheduleRequest, Slot
+from app.queries import APPOINTMENT_SELECT, my_appointments as query_my_appointments
 
 router = APIRouter(tags=["appointments"])
 
@@ -22,15 +23,6 @@ PatientId = Annotated[UUID, Depends(get_current_patient)]
 
 SLOT_WINDOW = timedelta(days=14)
 SLOT_LIMIT = 200
-
-APPOINTMENT_SELECT = """
-    select a.id, a.status, a.created_at, a.slot_id,
-           s.start_at, s.end_at, s.visit_type,
-           s.doctor_id, d.name as doctor_name, d.specialty
-    from public.appointments a
-    join public.slots s on s.id = a.slot_id
-    join public.doctors d on d.id = s.doctor_id
-"""
 
 
 def as_utc(value: datetime | None) -> datetime | None:
@@ -108,16 +100,7 @@ def my_appointments(
     when: Literal["upcoming", "past"] = "upcoming",
 ) -> list[Appointment]:
     """Booked appointments. Upcoming: soonest first. Past: most recent first."""
-    if when == "upcoming":
-        where, order = "s.start_at > now()", "s.start_at asc"
-    else:
-        where, order = "s.start_at <= now()", "s.start_at desc"
-    rows = conn.execute(
-        APPOINTMENT_SELECT
-        + f" where a.patient_id = %s and a.status = 'booked' and {where} order by {order}",
-        (patient_id,),
-    ).fetchall()
-    return [Appointment(**r) for r in rows]
+    return query_my_appointments(conn, patient_id, when)
 
 
 @router.post("/appointments", status_code=201)

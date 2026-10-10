@@ -4,6 +4,7 @@ Requires local Supabase running (supabase start) and the repo .env. Test patient
 staff are real Supabase Auth users with real access tokens.
 """
 
+import os
 import uuid
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
@@ -13,10 +14,15 @@ import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 
-from app import storage
-from app.db import database_url
-from app.main import app
-from tests.supabase_auth import SupabaseAuth
+# Tests never send traces. Set before app code loads .env (which won't override it).
+os.environ["LANGSMITH_TRACING"] = "false"
+
+from app import storage  # noqa: E402
+from app.agent import llm  # noqa: E402
+from app.db import database_url  # noqa: E402
+from app.main import app  # noqa: E402
+from tests.fake_llm import FakeLLM  # noqa: E402
+from tests.supabase_auth import SupabaseAuth  # noqa: E402
 
 # patient_id -> access token, filled by Factory.patient()
 TOKENS: dict[uuid.UUID, str] = {}
@@ -26,6 +32,14 @@ TOKENS: dict[uuid.UUID, str] = {}
 def client() -> Iterator[TestClient]:
     with TestClient(app) as c:  # runs lifespan, so the pool opens and closes
         yield c
+
+
+@pytest.fixture(autouse=True)
+def fake_llm(monkeypatch: pytest.MonkeyPatch) -> FakeLLM:
+    """Every test gets the scripted LLM, so no test can reach Groq."""
+    fake = FakeLLM()
+    monkeypatch.setattr(llm, "chat_model", fake)
+    return fake
 
 
 @pytest.fixture(scope="session")
@@ -122,7 +136,25 @@ class Factory:
         ).fetchone()
         return row["id"]
 
+    def document_row(self, patient_id: uuid.UUID, filename: str, kind: str = "insurance_card") -> uuid.UUID:
+        """A documents row with no file behind it (enough for read-only queries)."""
+        doc_id = uuid.uuid4()
+        self.db.execute(
+            "insert into public.documents (id, patient_id, kind, storage_path, original_filename,"
+            " content_type, size_bytes) values (%s, %s, %s, %s, %s, 'image/png', 100)",
+            (doc_id, patient_id, kind, f"{patient_id}/{doc_id}.png", filename),
+        )
+        return doc_id
+
     def cleanup(self) -> None:
+        convos = self.db.execute(
+            "delete from public.conversations where patient_id = any(%s) returning id",
+            (self.patient_ids,),
+        ).fetchall()  # messages go with them (on delete cascade)
+        graph = getattr(app.state, "chat_graph", None)
+        for convo in convos:
+            if graph is not None:
+                graph.checkpointer.delete_thread(str(convo["id"]))
         self.db.execute(
             "delete from public.appointments where patient_id = any(%s)"
             " or slot_id in (select id from public.slots where doctor_id = any(%s))",

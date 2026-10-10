@@ -14,6 +14,7 @@ from app.db import Conn
 from app.deps import get_current_patient
 from app.files import MAX_BYTES, clean_filename, detect_type, read_limited
 from app.models import Document, SignedUrl
+from app.queries import DOCUMENT_COLUMNS as COLUMNS, my_documents
 
 router = APIRouter(prefix="/me/documents", tags=["documents"])
 log = logging.getLogger(__name__)
@@ -21,7 +22,6 @@ log = logging.getLogger(__name__)
 PatientId = Annotated[UUID, Depends(get_current_patient)]
 Kind = Literal["insurance_card", "referral"]
 
-COLUMNS = "id, kind, original_filename, content_type, size_bytes, created_at"
 INSERT_SQL = f"""
     insert into public.documents
       (id, patient_id, kind, storage_path, original_filename, content_type, size_bytes)
@@ -73,11 +73,7 @@ def upload_document(
 
 @router.get("")
 def list_documents(conn: Conn, patient_id: PatientId) -> list[Document]:
-    rows = conn.execute(
-        f"select {COLUMNS} from public.documents where patient_id = %s order by created_at desc",
-        (patient_id,),
-    ).fetchall()
-    return [Document(**r) for r in rows]
+    return my_documents(conn, patient_id)
 
 
 @router.get("/{document_id}/url")

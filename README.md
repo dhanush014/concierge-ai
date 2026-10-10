@@ -49,6 +49,19 @@ curl -s "$SUPABASE_URL/auth/v1/token?grant_type=password" -H "apikey: $SUPABASE_
 
 Paste it into **Authorize** on the docs page.
 
+**Chat agent** (needs `GROQ_API_KEY` in `.env`; LangSmith tracing is on when the
+`LANGSMITH_*` values are set). With a token in `$TOKEN` from the step above:
+
+```bash
+curl -N http://localhost:8000/me/chat -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{"message": "when is my next appointment?"}'
+```
+
+You get a stream of `data: {...}` lines: `conversation` (its id), `token` pieces of the
+reply, then `done` with the safety category and route. Send `"conversation_id"` to
+continue a chat; `GET /me/conversations/<id>` returns its saved messages. The API tests
+use a fake model and never call Groq.
+
 **Web** (Next.js, http://localhost:3000). Reads the `NEXT_PUBLIC_*` values from the root `.env`.
 Sign in with a demo login printed by the seed script: patients land on `/portal`, staff on `/staff`.
 
