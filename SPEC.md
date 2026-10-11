@@ -85,9 +85,9 @@ patient_insurance  id, patient_id, payer, plan_name, member_id, group_number,
 documents          id, patient_id, kind ('insurance_card'|'referral'), storage_path, created_at,
                    original_filename (sanitized, max 200), content_type (jpeg|png|pdf), size_bytes (<= 10 MB)
                    file in private Storage bucket patient-docs at <patient_id>/<document_id>.<ext>
-chunks             id, content, embedding vector(384), source_type ('policy'|'record'),
-                   patient_id (null for policy), payer (null unless contract doc),
-                   doc_title, section, date, sensitive (bool), content_hash
+chunks             id, source_id (stable source key, unique), content, embedding vector(384),
+                   source_type ('policy'|'record'), patient_id (null for policy), payer (null unless
+                   contract doc), doc_title, section, date, sensitive (bool), content_hash
 conversations      id, patient_id, status ('bot'|'handoff'|'closed'), created_at
 messages           id, conversation_id, sender ('patient'|'assistant'|'staff'), staff_id,
                    kind ('text'|'emergency'|'handoff'|'notice', how the UI shows it), content, created_at
@@ -108,7 +108,8 @@ read handoffs, conversations, messages.
 - Policy docs (`data/policies/*.md`): split by heading, ~400 tokens, 50 overlap, keep the heading in the chunk.
 - Insurance contract docs (`data/contracts/<payer>.md`): same, tagged with `payer`.
 - Patient records (Synthea FHIR): one chunk per event (one lab, one med, one visit),
-  date and type written into the text. Last 3 years only.
+  date and type written into the text. Last 3 years only, except ongoing items (active
+  conditions, allergies and prescriptions), which are kept whatever their start date.
 - Mental health and substance-use records tagged `sensitive = true`.
 - Skip re-embedding when `content_hash` is unchanged.
 

@@ -1,0 +1,22 @@
+{
+  "about": "Checkable facts from data/policies/ (fictional). Step 2 retrieval/answer tests ask the question and expect every 'expect' string in the answer, citing 'doc'.",
+  "facts": [
+    {"question": "Do I need to fast before blood work?", "expect": ["8", "12 hours"], "doc": "lab-and-fasting-prep.md"},
+    {"question": "Can I drink water while fasting for a blood test?", "expect": ["water"], "doc": "lab-and-fasting-prep.md"},
+    {"question": "What are the lab hours on Saturday?", "expect": ["8:00 AM", "12:00 PM"], "doc": "lab-and-fasting-prep.md"},
+    {"question": "Do I need to fast for an A1c test?", "expect": ["not"], "doc": "lab-and-fasting-prep.md"},
+    {"question": "How early should I arrive for an MRI?", "expect": ["30 minutes"], "doc": "imaging-prep.md"},
+    {"question": "How long before a CT with contrast should I stop eating?", "expect": ["4 hours"], "doc": "imaging-prep.md"},
+    {"question": "What are the ICU visiting hours?", "expect": ["11:00 AM", "7:00 PM"], "doc": "visiting-hours.md"},
+    {"question": "How many visitors can be in the ICU at once?", "expect": ["2"], "doc": "visiting-hours.md"},
+    {"question": "What is the minimum monthly payment on a payment plan?", "expect": ["$25"], "doc": "billing-and-payment-plans.md"},
+    {"question": "Do payment plans charge interest?", "expect": ["interest-free"], "doc": "billing-and-payment-plans.md"},
+    {"question": "How much do paper copies of my records cost?", "expect": ["$0.25", "$25"], "doc": "medical-records-requests.md"},
+    {"question": "How long does a full records request take?", "expect": ["15 business days"], "doc": "medical-records-requests.md"},
+    {"question": "How much notice do I need to cancel an appointment?", "expect": ["24 hours"], "doc": "cancellation-and-no-show.md"},
+    {"question": "Is there a no-show fee?", "expect": ["$35"], "doc": "cancellation-and-no-show.md"},
+    {"question": "What happens if my telehealth video doesn't work?", "expect": ["phone", "10 minutes"], "doc": "telehealth.md"},
+    {"question": "How much does parking cost?", "expect": ["$2", "$12"], "doc": "parking.md"},
+    {"question": "How long is parking free with validation?", "expect": ["3 hours"], "doc": "parking.md"}
+  ]
+}

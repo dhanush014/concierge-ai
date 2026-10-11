@@ -30,6 +30,17 @@ uv run scripts/seed.py    # 20 patients, 8 doctors, slots for today ±30 days
 
 Reseed before a demo: slots and "upcoming" appointments are relative to the day you seed.
 
+**RAG ingestion** (policy docs in `data/policies/` + patient records, embedded locally with
+`BAAI/bge-small-en-v1.5`; needs the seed run first):
+
+```bash
+uv run --project api scripts/ingest.py --only all   # or: policies | records
+```
+
+Re-runnable: unchanged chunks aren't embedded again, chunks whose source is gone are removed.
+The first run downloads the model (~130 MB) if it isn't cached. Checkable policy facts for
+later tests: `evals/policy_facts.json`.
+
 **Tests** (API, against local Supabase; they create and delete their own data):
 
 ```bash

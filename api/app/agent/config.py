@@ -8,6 +8,10 @@ ROUTER_MODEL = "openai/gpt-oss-20b"
 ANSWER_MODEL = "openai/gpt-oss-120b"
 SUMMARY_MODEL = "openai/gpt-oss-20b"  # one-line handoff summary for staff
 
+# Local embeddings for RAG (sentence-transformers, runs on this machine).
+EMBED_MODEL = "BAAI/bge-small-en-v1.5"
+EMBED_DIMS = 384
+
 # The safety LLM gets this long before the cascade falls back to its regex flag.
 SAFETY_TIMEOUT_SECONDS = 3.0
 ROUTER_TIMEOUT_SECONDS = 3.0
