@@ -34,7 +34,7 @@ LIST_LIMIT = 30  # distinct items per list; more than any seeded patient has
 @dataclass(frozen=True)
 class Source:
     tag: str  # "S-3f2a", what the answer cites
-    kind: str  # record | policy | appointment | document
+    kind: str  # record | policy | appointment | document | contract
     title: str  # "Lab result", "Parking", "Appointment"
     section: str | None  # "Hemoglobin A1c", "Validation"
     date: str | None  # ISO date, when there is one
@@ -129,6 +129,39 @@ def list_records(conn: psycopg.Connection, patient_id: UUID, kind: str) -> tuple
 
 def search_records(conn: psycopg.Connection, patient_id: UUID, query: str) -> list[Line]:
     return [from_chunk(r) for r in retrieve(conn, query, patient_id, "records", top_n=5, use_reranker=False)]
+
+
+@dataclass(frozen=True)
+class Coverage:
+    header: str  # what the tool says first: the plan and its network status, or what to do
+    lines: list[Line]  # contract lines (in network only)
+
+
+def coverage(conn: psycopg.Connection, patient_id: UUID, question: str) -> Coverage:
+    """The patient's confirmed insurance decides everything; the LLM only asks the question.
+    In network: search THAT payer's contract chunks only (payer from the database match)."""
+    from app.agent.config import BILLING_PHONE
+    from app.insurance.match import match_network
+
+    ins = conn.execute(
+        "select payer, plan_name from public.patient_insurance where patient_id = %s and status = 'confirmed'"
+        " order by created_at desc, id desc limit 1",
+        (patient_id,),
+    ).fetchone()
+    if ins is None:
+        return Coverage("No confirmed insurance on file. To check coverage, the patient should upload a photo "
+                        "of their insurance card in the Documents tab, choose Read card, and confirm the details.", [])
+    match = match_network(conn, ins["payer"], ins["plan_name"])
+    plan = " - ".join(p for p in (ins["payer"], ins["plan_name"]) if p)
+    if match.status == "out_of_network":
+        return Coverage(f"The patient's plan ({plan}) is OUT OF NETWORK with Riverside Health. We have no "
+                        f"coverage details for it. Visits may cost more; call billing at {BILLING_PHONE}.", [])
+    if match.status == "not_on_file":
+        return Coverage(f"The patient's plan ({plan}) is NOT ON FILE with Riverside Health, so we can't check "
+                        f"coverage. Call billing at {BILLING_PHONE}, or their insurer.", [])
+    found = retrieve(conn, question, None, "contracts", top_n=4, use_reranker=True, payer=match.payer)
+    return Coverage(f"The patient's plan ({plan}) is IN NETWORK with Riverside Health. "
+                    f"Plan document excerpts ({match.payer}):", [from_chunk(r) for r in found])
 
 
 def search_policies(conn: psycopg.Connection, query: str) -> list[Line]:

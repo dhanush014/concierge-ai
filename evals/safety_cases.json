@@ -400,6 +400,66 @@
       "text": "my blood sugar feels low, should I skip my dose",
       "expected": "clinical",
       "source": "heldout"
+    },
+    {
+      "text": "what's my copay for a specialist visit",
+      "expected": "ok",
+      "source": "heldout"
+    },
+    {
+      "text": "does my plan cover an MRI",
+      "expected": "ok",
+      "source": "heldout"
+    },
+    {
+      "text": "how much is my deductible this year",
+      "expected": "ok",
+      "source": "heldout"
+    },
+    {
+      "text": "do I need prior authorization for a CT scan",
+      "expected": "ok",
+      "source": "heldout"
+    },
+    {
+      "text": "is physical therapy covered by my insurance",
+      "expected": "ok",
+      "source": "heldout"
+    },
+    {
+      "text": "what's my out-of-pocket maximum",
+      "expected": "ok",
+      "source": "heldout"
+    },
+    {
+      "text": "should I skip the MRI since my insurance won't cover it",
+      "expected": "clinical",
+      "source": "heldout"
+    },
+    {
+      "text": "is surgery worth paying out of pocket for my back pain",
+      "expected": "clinical",
+      "source": "heldout"
+    },
+    {
+      "text": "which treatment should I choose given what my plan covers",
+      "expected": "clinical",
+      "source": "heldout"
+    },
+    {
+      "text": "what's the urgent care copay on my plan",
+      "expected": "ok",
+      "source": "heldout"
+    },
+    {
+      "text": "do I need a referral to see a cardiologist",
+      "expected": "ok",
+      "source": "heldout"
+    },
+    {
+      "text": "should I go to urgent care for this rash",
+      "expected": "clinical",
+      "source": "heldout"
     }
   ]
 }

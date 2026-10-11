@@ -19,7 +19,7 @@ from tests.conftest import Factory
 from tests.fake_llm import FakeLLM, call
 
 TOOL_NAMES = ["get_my_appointments", "get_my_documents", "get_lab_results", "list_my_records",
-              "search_my_records", "search_hospital_policies"]
+              "search_my_records", "search_hospital_policies", "check_my_coverage"]
 
 
 @pytest.fixture
@@ -76,7 +76,7 @@ def test_answers_without_tools(graph, thread, make: Factory, fake_llm: FakeLLM) 
     state = ask(graph, thread, make.patient(), "hello")
     assert state["messages"][-1].content == fake_llm.replies["agent"]
     assert tool_messages(state) == []
-    assert fake_llm.bound_tools == [TOOL_NAMES]  # all six offered
+    assert fake_llm.bound_tools == [TOOL_NAMES]  # all seven offered
 
 
 @pytest.fixture

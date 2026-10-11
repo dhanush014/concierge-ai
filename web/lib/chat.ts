@@ -6,7 +6,7 @@ export type ConversationStatus = "bot" | "handoff" | "closed";
 /** A source an answer cites, shown under the reply. */
 export type SourceRef = {
   tag: string; // "S-3f2a", as cited in the text
-  kind: "record" | "policy" | "appointment" | "document";
+  kind: "record" | "policy" | "contract" | "appointment" | "document";
   title: string;
   section: string | null;
   date: string | null; // ISO date

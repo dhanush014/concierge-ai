@@ -77,6 +77,7 @@ def run_turn(
     config = {"configurable": {"thread_id": str(conversation_id)}, "run_id": trace_id}
     kind = "text"
     category = "ok"
+    streamed = ""  # the agent's text as sent; code may add to the final answer (disclaimer)
 
     def save(content: str, kind: str, sources: list[dict] | None = None) -> None:
         with pool.connection() as conn:
@@ -91,6 +92,7 @@ def run_turn(
                 # Only the agent's text; its tool-call messages carry no text to show.
                 if (meta.get("langgraph_node") == "agent" and isinstance(chunk.content, str) and chunk.content
                         and not getattr(chunk, "tool_call_chunks", None)):
+                    streamed += chunk.content
                     yield sse({"type": "token", "text": chunk.content})
                 continue
             for node, update in data.items():
@@ -112,6 +114,8 @@ def run_turn(
         sources: list[dict] = []
         if category == "ok":
             answer = str(values["messages"][-1].content)
+            if answer.startswith(streamed) and len(answer) > len(streamed):
+                yield sse({"type": "token", "text": answer[len(streamed):]})  # added in code, e.g. the disclaimer
             sources = cited_sources(answer, [m.artifact for m in tool_messages])
             save(answer, "text", sources)
         yield sse({"type": "done", "safety": values["safety"], "tools": [m.name for m in tool_messages],

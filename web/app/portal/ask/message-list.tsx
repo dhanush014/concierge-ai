@@ -36,7 +36,7 @@ export function withCitations(text: string, sources: SourceRef[] | null | undefi
 
 function sourceLabel(s: SourceRef): string {
   const parts = [s.title, s.section, s.date ? SOURCE_DATE.format(new Date(`${s.date}T12:00:00Z`)) : null].filter(Boolean);
-  return s.kind === "policy" ? `${s.title} › ${s.section ?? ""}` : parts.join(" · ");
+  return s.kind === "policy" || s.kind === "contract" ? `${s.title} › ${s.section ?? ""}` : parts.join(" · ");
 }
 
 function Sources({ sources }: { sources: SourceRef[] }) {

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
-import { AJA, loginAs, purgeE2EDocuments, purgeInsuranceSince } from "./helpers";
+import { AJA, assertFakeLlm, loginAs, purgeConversationsSince, purgeE2EDocuments, purgeInsuranceSince } from "./helpers";
 
 // Fake LLM mode: the fake vision model recognizes the sample cards in data/cards/ by their
 // bytes and returns their truth.json values; any other image reads as all empty.
@@ -12,11 +12,13 @@ const CARDS = path.resolve(__dirname, "../../data/cards");
 const card = (file: string, name: string) => ({ name, mimeType: "image/png", buffer: readFileSync(path.join(CARDS, file)) });
 
 test.beforeAll(async () => {
+  await assertFakeLlm();
   await purgeE2EDocuments();
 });
 
 test.afterAll(async () => {
   await purgeInsuranceSince(AJA, runStart);
+  await purgeConversationsSince(AJA, runStart);
   await purgeE2EDocuments();
 });
 
@@ -55,7 +57,24 @@ test("1. Read Aja's card: fields filled in, in network, confirm saves it", async
   await expect(summary(page)).toContainText("RBH556706360");
 });
 
-test("2. Someone else's card: name warning, out of network", async ({ page }) => {
+test("2. Ask about my coverage: question prefilled, answer cites her plan and ends with the disclaimer", async ({ page }) => {
+  await openDocuments(page);
+  await summary(page).getByRole("link", { name: "Ask about my coverage" }).click();
+
+  const box = page.getByLabel("Your question");
+  await expect(box).toHaveValue("What is my specialist copay?");
+  await expect(page.getByRole("list", { name: "Conversation" })).toHaveCount(0); // not sent by itself
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+
+  const reply = page.getByRole("list", { name: "Conversation" }).locator(":scope > li").last();
+  // A cold API server is still loading the embedding and reranking models.
+  await expect(reply).toContainText("This is an estimate. Confirm with your insurer.", { timeout: 25_000 });
+  await expect(reply.getByRole("listitem").first()).toContainText("Riverbend Health — Riverbend Silver HMO ›");
+  await expect(reply).not.toContainText("Liberty"); // only her payer's plan
+  await expect(box).toHaveValue("");
+});
+
+test("3. Someone else's card: name warning, out of network", async ({ page }) => {
   await openDocuments(page);
   await uploadCard(page, card("marissa.png", "e2e-marissa-card.png"));
   await page.getByRole("button", { name: "Read card e2e-marissa-card.png" }).click();
@@ -66,7 +85,7 @@ test("2. Someone else's card: name warning, out of network", async ({ page }) =>
   await expect(summary(page)).toContainText("Out of network");
 });
 
-test("3. Unreadable card: every field highlighted, payer required", async ({ page }) => {
+test("4. Unreadable card: every field highlighted, payer required", async ({ page }) => {
   await openDocuments(page);
   await uploadCard(page, path.join(__dirname, "fixtures", "e2e-card.png"));
   await page.getByRole("button", { name: "Read card e2e-card.png" }).click();

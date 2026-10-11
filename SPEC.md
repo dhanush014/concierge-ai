@@ -41,9 +41,18 @@ readable text, no decoration.
 4. In-network check is a **database lookup** in `network_contracts`, matched in plain code
    (case/space-insensitive + aliases in data/payers.json): in_network, out_of_network or
    not_on_file. Never the LLM. A card whose name isn't the patient's gets a warning.
-5. If in network, RAG over that payer's contract docs answers coverage details
-   (copay, prior authorization, covered services) with citations.
-6. Answer always ends with: "This is an estimate. Confirm with your insurer."
+5. Coverage questions in Ask go to the `check_my_coverage` tool, which takes the patient's
+   latest **confirmed** insurance (patient id from the login):
+   - none confirmed: tell them to upload and confirm their card in Documents;
+   - out of network or not on file: say so plainly and point to billing;
+   - in network: RAG over THAT payer's contract chunks only (payer from the database
+     match, never the LLM), answered with citations.
+   After confirming, Documents shows "Ask about my coverage": it opens Ask with a
+   suggested question in the box (not sent until the patient presses Send).
+6. A coverage answer always ends with: "This is an estimate. Confirm with your insurer."
+   Code adds it if the model leaves it out (any turn that called check_my_coverage).
+   Coverage and copay questions are administrative for the safety check; advice framed
+   around insurance ("should I skip the MRI since it isn't covered") is clinical.
 
 ### 3. Ask (chat agent, LangGraph)
 ```
@@ -51,11 +60,12 @@ message -> safety check -> agent (LLM + read-only tools, max 4 calls) -> answer 
 ```
 - Safety check runs first on every message (see Handoff).
 - Tools: appointments, documents, lab results (grouped by test), record lists (meds,
-  conditions, allergies, immunizations, visits), record search, hospital policy search;
-  insurance status in Phase 5. The patient id is injected from the login, never the LLM.
+  conditions, allergies, immunizations, visits), record search, hospital policy search,
+  coverage check (`check_my_coverage`, see Insurance check). The patient id is injected
+  from the login, never the LLM.
 - Answers cite tool lines by tag; the cited sources are saved with the message
   (`messages.sources`) and shown under the reply.
-- RAG sources: the patient's own records + hospital policy docs.
+- RAG sources: the patient's own records + hospital policy docs + their payer's contract.
 - Never interprets results, never gives medical advice. Reports only what the records say.
 
 ### 4. Handoff (the ONLY human-in-the-loop step)

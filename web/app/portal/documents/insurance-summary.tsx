@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { FIELD_LABEL, NETWORK, type Insurance, type NetworkStatus } from "@/lib/insurance";
 
 export function NetworkBadge({ status }: { status: NetworkStatus }) {
@@ -7,6 +8,8 @@ export function NetworkBadge({ status }: { status: NetworkStatus }) {
     </span>
   );
 }
+
+export const COVERAGE_QUESTION = "What is my specialist copay?";
 
 /** The patient's confirmed insurance, or a hint to read a card. */
 export function InsuranceSummary({ insurance }: { insurance: Insurance | null | undefined }) {
@@ -34,6 +37,12 @@ export function InsuranceSummary({ insurance }: { insurance: Insurance | null | 
               </div>
             ))}
           </dl>
+          <Link
+            href={`/portal/ask?c=new&ask=${encodeURIComponent(COVERAGE_QUESTION)}`}
+            className="mt-4 inline-flex min-h-11 items-center rounded-md border border-accent px-5 font-semibold text-accent hover:bg-accent-soft"
+          >
+            Ask about my coverage
+          </Link>
         </>
       )}
     </section>

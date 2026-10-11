@@ -60,6 +60,13 @@ uv run --project api evals/run_safety.py    # real Groq LLM: escalation recall, 
 ```bash
 uv run --project api evals/run_extraction.py   # real vision model on data/cards/: field accuracy
 ```
+
+```bash
+uv run --project api evals/run_coverage.py   # real Groq LLM: contract facts per payer, never another payer's plan
+```
+
+`run_coverage.py` creates temporary patients with confirmed insurance and deletes them when
+it finishes.
 The first run downloads the model (~130 MB) if it isn't cached. Checkable policy facts for
 later tests: `evals/policy_facts.json`.
 

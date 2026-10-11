@@ -35,6 +35,7 @@ RECORD_KINDS = [  # (pattern, list_my_records kind)
 ]
 POLICY_WORDS = r"park|fast|visiting|visitor|bill|pay|records request|telehealth|mri|ct scan|no-show"
 BOOKING = r"\b(book|reschedul\w*|cancel\w*|move)\b"
+COVERAGE = r"\b(cover\w*|copays?|deductible|prior auth\w*|insurance|out-of-pocket|in network)\b"
 APPOINTMENTS_TAB = ("I can't book, reschedule or cancel visits in chat. Use the Appointments tab: "
                     "it shows open times and makes the change right away.")
 
@@ -67,6 +68,8 @@ def fake_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
     lower = text.lower()
     if re.search(BOOKING, lower):
         return None
+    if re.search(COVERAGE, lower):
+        return "check_my_coverage", {"question": text}
     if re.search(r"\bappointments?\b|\bvisits?\b", lower):
         return "get_my_appointments", {}
     if re.search(r"documents?|upload", lower):

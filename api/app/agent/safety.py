@@ -63,7 +63,7 @@ STRICT: dict[Category, list[str]] = {
         r"\b(dizzy|nauseous|bleeding|vomiting)\b",
         r"\bsymptoms?\b",
         r"can i \b(stop|skip|double|change)\b [\w\s]{0,20} \b(taking|my medication|my dose)\b",
-        r"\b(urgent|urgently)\b",
+        r"\b(urgent(?!\s+care)|urgently)\b",  # "urgent care" is also a clinic type: loose
         r"need to \b(come in|be seen)\b \b(sooner|today|now)\b",
         r"\b(scared|frightened|terrified|panicking)\b",
     ],
@@ -113,6 +113,10 @@ LOOSE: dict[Category, list[str]] = {
         r"should i (keep|stay on) (taking|using|on)\b",
         r"\bdouble up\b",
         r"\bdoes\b [\w\s']{1,40}\bmean\b",
+        # Added with the coverage held-out cases: advice framed around insurance.
+        r"should i (skip|avoid|delay|put off)\b",
+        r"\burgent care\b",  # "should I go to urgent care" vs "the urgent care copay"
+        r"\bwhich\b[\w\s]{0,25}\bshould i\b",
     ],
     "wants_human": [
         r"\b(someone|somebody|a person|a human)\b",

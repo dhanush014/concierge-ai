@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { StatusMessage, type Status } from "@/components/status-message";
 import { isRetryable, isStatus } from "@/lib/api";
-import { getConversation, getLatestConversation, messageFor, streamChat, type Conversation } from "@/lib/chat";
+import { getConversation, getLatestConversation, MAX_MESSAGE_CHARS, messageFor, streamChat, type Conversation } from "@/lib/chat";
 import { Composer } from "./composer";
 import { MessageList, withCitations, type ShownMessage } from "./message-list";
 import { arrivals, empty, fromConversation, staffInChat, type Session } from "./session";
@@ -16,17 +16,26 @@ const SUGGESTIONS = ["When is my next appointment?", "What documents have I uplo
 /**
  * The Ask tab. URL: no ?c = reopen your latest conversation; ?c=<id> = that one;
  * ?c=new = a fresh one (created by the first message, then the URL becomes its id).
+ * &ask=<text> puts a suggested question in the box; the patient still presses Send.
  * During a handoff the assistant is quiet; staff replies arrive live.
  */
 export function ChatView() {
   const router = useRouter();
-  const urlKey = useSearchParams().get("c") ?? "latest";
+  const params = useSearchParams();
+  const urlKey = params.get("c") ?? "latest";
+  const ask = params.get("ask");
 
   const [session, setSession] = useState<Session>(() => empty(urlKey === "new" ? "new" : ""));
   const [loadError, setLoadError] = useState<{ key: string; error: unknown } | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
   const [status, setStatus] = useState<Status>(null);
   const [input, setInput] = useState("");
+  // Prefill once per ?ask= visit (the page may stay mounted between visits).
+  const [asked, setAsked] = useState<string | null>(null);
+  if (ask !== asked) {
+    setAsked(ask);
+    if (ask) setInput(ask.slice(0, MAX_MESSAGE_CHARS));
+  }
   const [streaming, setStreaming] = useState(false);
   const [announced, setAnnounced] = useState({ polite: "", urgent: "" });
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -85,6 +94,10 @@ export function ChatView() {
     const said = arrivals(before.messages, next.messages);
     if (said) setAnnounced({ polite: said, urgent: "" });
   });
+
+  useEffect(() => {
+    if (ask) inputRef.current?.focus();
+  }, [ask]);
 
   // Keep the newest message (and the input) in view as the reply streams in.
   useEffect(() => {

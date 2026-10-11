@@ -69,7 +69,7 @@ class SourceRef(BaseModel):
     """A source an answer cites: shown under the reply."""
 
     tag: str  # "S-3f2a", as cited in the text
-    kind: Literal["record", "policy", "appointment", "document"]
+    kind: Literal["record", "policy", "appointment", "document", "contract"]
     title: str  # "Lab result", "Parking"
     section: str | None  # "Hemoglobin A1c", "Validation"
     date: str | None  # ISO date

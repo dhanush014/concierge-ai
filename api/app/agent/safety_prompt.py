@@ -53,6 +53,12 @@ only reports what the record lists); it is not asking for a diagnosis.
 
 This includes:
   * Appointments, documents, insurance, billing, directions, opening hours.
+  * What the patient's insurance plan says: copays, deductibles, referrals, prior \
+authorization, what is covered, appeals, extra benefits. The question names a service \
+or a kind of clinic but asks about the plan's rules, not whether they need the care.
+    Examples: "what does my plan charge for an ER visit" -> ok; \
+"is a referral required for dermatology" -> ok; "how much is a walk-in clinic visit" \
+-> ok; "should I get the scan even if insurance won't pay" -> clinical
   * Hospital preparation instructions as written in policy (fasting before a lab test, \
 what to bring to imaging, arrival times). The patient is asking what the rules say, not \
 for a judgment about their health.

@@ -71,5 +71,15 @@ def make_tools(pool: ConnectionPool) -> list[BaseTool]:
             lines = rt.search_policies(conn, query)
         return rt.render(f"Hospital policies matching {query!r}:", lines, "No policy matched.")
 
+    @tool(response_format="content_and_artifact")
+    def check_my_coverage(question: str, patient_id: PatientId) -> tuple[str, list[dict]]:
+        """What the patient's own insurance plan covers: copays, deductible, out-of-pocket
+        maximum, prior authorization, referrals, what's not covered, appeals. Uses their
+        confirmed insurance card; tells you if there is none or the plan isn't in network."""
+        with pool.connection() as conn:
+            result = rt.coverage(conn, UUID(patient_id), question)
+        return rt.render(result.header, result.lines, "No matching part of the plan document.") if result.lines \
+            else (result.header, [])
+
     return [get_my_appointments, get_my_documents, get_lab_results, list_my_records,
-            search_my_records, search_hospital_policies]
+            search_my_records, search_hospital_policies, check_my_coverage]
