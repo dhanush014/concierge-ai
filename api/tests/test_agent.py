@@ -192,3 +192,13 @@ def test_prompt_never_turns_a_missing_condition_into_a_no() -> None:
     rule = " ".join(AGENT_PROMPT.split())
     assert "NEVER say they don't have it" in rule
     assert "can't determine whether they have a condition" in rule and "nurse" in rule
+
+
+def test_prompt_checks_the_full_list_for_do_i_have() -> None:
+    """Real-model check: evals/run_answers.py --only not-found (must call
+    list_my_records and never say "the only" conditions)."""
+    from app.agent.prompts import AGENT_PROMPT
+
+    rule = " ".join(AGENT_PROMPT.split())
+    assert 'check the full list with list_my_records(kind="conditions") before answering' in rule
+    assert 'never call search results "the only" conditions' in rule

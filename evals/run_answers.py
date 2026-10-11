@@ -60,6 +60,9 @@ def expectations() -> dict[str, list]:
     return {f["question"]: f["expect"] for f in facts} | {c["question"]: c["expect"] for c in cases}
 
 
+expect_tool: dict[str, str | None] = {}  # question -> a tool that must have been called
+
+
 def not_found_cases(conn) -> tuple[list[Case], dict[str, list]]:
     spec = json.loads((ROOT / "evals" / "not_found_cases.json").read_text())["cases"]
     cases, forbid = [], {}
@@ -69,6 +72,7 @@ def not_found_cases(conn) -> tuple[list[Case], dict[str, list]]:
                            (first, last)).fetchone()["id"]
         cases.append(Case("not-found", c["question"], pid, set(), c["patient"]))
         forbid[c["question"]] = c["forbid"]
+        expect_tool[c["question"]] = c.get("expect_tool")
     return cases, forbid
 
 
@@ -116,7 +120,8 @@ def main() -> None:
         row = {
             "kind": case.kind, "question": case.question, "safety": state.get("safety"),
             "correct": state.get("safety") == "ok" and all(contains(answer, e) for e in expect[case.question])
-            and not any(contains(answer, f) for f in forbid.get(case.question, [])),
+            and not any(contains(answer, f) for f in forbid.get(case.question, []))
+            and (expect_tool.get(case.question) is None or expect_tool[case.question] in [m.name for m in tools]),
             "cited": any(s["tag"] in gold_tags for s in cited) if case.gold else None,  # not-found: n/a
             "tools": [m.name for m in tools],
             "answer": answer, "secs": secs,
