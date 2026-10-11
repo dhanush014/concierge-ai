@@ -55,6 +55,7 @@ class ChatState(TypedDict, total=False):
     records: str | None
     trace_id: str | None  # LangSmith run id of this turn, stored on a handoff
     notice: str | None  # a notice line for the patient (set by create_handoff)
+    handoff_summary: str | None  # the AI summary staff see (set by create_handoff)
 
 
 def _latest_text(state: ChatState) -> str:
@@ -68,7 +69,7 @@ def _recent(state: ChatState) -> list[AnyMessage]:
 def safety_check(state: ChatState) -> ChatState:
     result = safety.check(_latest_text(state))
     # route/records reset so a previous turn's values never leak into this one
-    return {"safety": result.category, "safety_source": result.source, "route": None, "records": None, "notice": None}
+    return {"safety": result.category, "safety_source": result.source, "route": None, "records": None, "notice": None, "handoff_summary": None}
 
 
 def escalate(state: ChatState) -> ChatState:
@@ -88,17 +89,21 @@ def summarize(state: ChatState) -> str:
     return f'Patient wrote: "{last[:300]}"'
 
 
-def make_create_handoff_node(pool: ConnectionPool):
+def make_create_handoff_node(pool: ConnectionPool, record: bool = True):
+    """record=False (LangGraph Studio): its threads aren't conversations in our database,
+    so the handoff row is skipped; the summary still lands in the state to inspect."""
+
     # The parameter must be named `config` for LangGraph to pass the run config in.
     def create_handoff(state: ChatState, config: RunnableConfig) -> ChatState:  # noqa: F811
         """All side effects of a handoff live here, NOT in wait_for_staff: LangGraph
         re-runs an interrupted node from the top when it resumes."""
-        conversation_id = UUID(config["configurable"]["thread_id"])
         summary = summarize(state)
-        with pool.connection() as conn:
-            handoffs.open_handoff(conn, conversation_id, state["safety"], summary, state.get("trace_id"))
+        if record:
+            conversation_id = UUID(config["configurable"]["thread_id"])
+            with pool.connection() as conn:
+                handoffs.open_handoff(conn, conversation_id, state["safety"], summary, state.get("trace_id"))
         notice = NURSE_NOTIFIED_NOTICE if state["safety"] == "emergency" else None
-        return {"notice": notice}
+        return {"notice": notice, "handoff_summary": summary}
 
     return create_handoff
 
@@ -148,34 +153,45 @@ def answer(state: ChatState) -> ChatState:
     return {"messages": [model.invoke([prompt, *_recent(state)])]}
 
 
+# Branch names double as the edge labels in the Mermaid diagram (docs/agent-graph.md).
+SAFE, NEEDS_PERSON = "ok", "emergency / clinical / wants_human"
+LOOKUP, FIXED = "appointments / documents", "change_appointment / other"
+
+
 def after_safety(state: ChatState) -> str:
-    return "router" if state["safety"] == "ok" else "escalate"
+    return SAFE if state["safety"] == "ok" else NEEDS_PERSON
 
 
 def after_router(state: ChatState) -> str:
-    return "tools" if state["route"] in TOOLS else "reply"
+    return LOOKUP if state["route"] in TOOLS else FIXED
 
 
-def build_graph(pool: ConnectionPool, checkpointer: BaseCheckpointSaver) -> CompiledStateGraph:
-    g = StateGraph(ChatState)
+def add_agent(g: StateGraph, pool: ConnectionPool, *, record_handoffs: bool = True) -> StateGraph:
+    """Every node and edge of the agent, starting at safety_check. Callers add the edge
+    into safety_check: START in production, a setup step in LangGraph Studio."""
     g.add_node("safety_check", safety_check)
     g.add_node("escalate", escalate)
-    g.add_node("create_handoff", make_create_handoff_node(pool))
+    g.add_node("create_handoff", make_create_handoff_node(pool, record=record_handoffs))
     g.add_node("wait_for_staff", wait_for_staff)
     g.add_node("router", router)
     g.add_node("tools", make_tools_node(pool))
     g.add_node("reply", reply)
     g.add_node("answer", answer)
 
-    g.add_edge(START, "safety_check")
-    g.add_conditional_edges("safety_check", after_safety, ["router", "escalate"])
-    g.add_conditional_edges("router", after_router, ["tools", "reply"])
+    g.add_conditional_edges("safety_check", after_safety, {SAFE: "router", NEEDS_PERSON: "escalate"})
+    g.add_conditional_edges("router", after_router, {LOOKUP: "tools", FIXED: "reply"})
     g.add_edge("tools", "answer")
     g.add_edge("escalate", "create_handoff")
     g.add_edge("create_handoff", "wait_for_staff")
     g.add_edge("wait_for_staff", END)
     g.add_edge("reply", END)
     g.add_edge("answer", END)
+    return g
+
+
+def build_graph(pool: ConnectionPool, checkpointer: BaseCheckpointSaver | None) -> CompiledStateGraph:
+    g = add_agent(StateGraph(ChatState), pool)
+    g.add_edge(START, "safety_check")
     return g.compile(checkpointer=checkpointer)
 
 

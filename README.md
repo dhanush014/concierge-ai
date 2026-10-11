@@ -71,6 +71,17 @@ ticket appears in the inbox live; Join, reply, Close, and the patient sees each 
 (Supabase Realtime). While waiting for a nurse the agent is silent, except an emergency still
 gets the 911 message. "View trace" shows when the `LANGSMITH_*` values are set.
 
+**Agent graph.** The diagram is in [docs/agent-graph.md](docs/agent-graph.md) (regenerate with
+`cd api && uv run python -m app.agent.draw`; a test fails if it's stale). To step through
+the graph in LangGraph Studio (needs `supabase start`; fake LLM unless `GROQ_API_KEY` is set):
+
+```bash
+cd api && uv run langgraph dev
+```
+
+It opens Studio in the browser (free LangSmith login). Patient id goes in the context panel;
+empty means Aja. Studio keeps its own memory and doesn't write handoffs to the database.
+
 **End-to-end tests** (Playwright; needs `supabase start` and the seed run once):
 
 ```bash

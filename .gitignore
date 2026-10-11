@@ -17,3 +17,6 @@ node_modules/
 
 # supabase studio
 supabase/snippets/
+
+# langgraph dev (LangGraph Studio) local state
+.langgraph_api/
