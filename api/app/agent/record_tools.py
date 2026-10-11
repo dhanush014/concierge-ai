@@ -28,7 +28,7 @@ RECORD_KINDS = {
 # Words that say nothing about which test: "what was my latest cholesterol level".
 LAB_STOPWORDS = {"my", "the", "a", "an", "of", "in", "level", "levels", "test", "tests", "result",
                  "results", "value", "values", "latest", "last", "recent", "most", "what", "was", "is"}
-LIST_LIMIT = 12  # distinct items per list
+LIST_LIMIT = 30  # distinct items per list; more than any seeded patient has
 
 
 @dataclass(frozen=True)
@@ -101,8 +101,9 @@ def _status(content: str) -> str | None:
     return m.group(1) if m else None
 
 
-def list_records(conn: psycopg.Connection, patient_id: UUID, kind: str) -> list[Line]:
-    """One line per distinct item (duplicates collapsed), current items first, then newest."""
+def list_records(conn: psycopg.Connection, patient_id: UUID, kind: str) -> tuple[list[Line], int]:
+    """(one line per distinct item, how many distinct items there are). Duplicates
+    collapsed, current items first, then newest; at most LIST_LIMIT lines."""
     doc_title = RECORD_KINDS[kind]
     rows = conn.execute(
         "select source_id, source_type, doc_title, section, date, content from public.chunks"
@@ -121,7 +122,7 @@ def list_records(conn: psycopg.Connection, patient_id: UUID, kind: str) -> list[
             text += f" ({len(items)} records, {first['date']} to {latest['date']})"
         lines.append((status == "active", latest["date"], from_chunk(latest)[0], text))
     lines.sort(key=lambda x: (x[0], x[1]), reverse=True)  # active first, then newest
-    return [(s, t) for _, _, s, t in lines[:LIST_LIMIT]]
+    return [(s, t) for _, _, s, t in lines[:LIST_LIMIT]], len(lines)
 
 
 # --- searches ---

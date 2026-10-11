@@ -89,14 +89,16 @@ def test_unknown_lab_name_falls_back_to_meaning(db, records) -> None:
 
 def test_lists_collapse_repeats_and_put_current_first(db, records) -> None:
     aja, _ = records
-    meds = texts(rt.list_records(db, aja, "medications"))
+    lines, total = rt.list_records(db, aja, "medications")
+    meds = texts(lines)
+    assert total == 2
     assert meds[0].startswith("Medication prescribed, 2025-03-01: metformin") and "(2 records, 2024-03-01 to 2025-03-01)" in meds[0]
     assert "amoxicillin" in meds[1] and len(meds) == 2
 
 
 def test_sensitive_never_returned(db, records) -> None:
     aja, _ = records
-    everything = texts(rt.list_records(db, aja, "conditions")) + texts(rt.search_records(db, aja, "depression"))
+    everything = texts(rt.list_records(db, aja, "conditions")[0]) + texts(rt.search_records(db, aja, "depression"))
     assert not any("depression" in t.lower() for t in everything)
     assert any("Prediabetes" in t for t in everything)
 
@@ -137,3 +139,20 @@ def test_sources_saved_with_the_reply(client: TestClient, records, fake_llm: Fak
     assert body["messages"][-1]["sources"] == [{"tag": tag, "kind": "record", "title": "Lab result",
                                                 "section": "Hemoglobin A1c/Hemoglobin.total in Blood", "date": "2026-05-01"}]
     assert body["messages"][0]["sources"] is None  # the patient's message has none
+
+
+def test_a_cut_list_says_so(db, records, monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.agent.toolkit import make_tools
+
+    aja, _ = records
+    monkeypatch.setattr(rt, "LIST_LIMIT", 1)
+
+    class Pool:  # the tool only needs pool.connection()
+        def connection(self):
+            from contextlib import nullcontext
+            return nullcontext(db)
+
+    tool = next(t for t in make_tools(Pool()) if t.name == "list_my_records")
+    text = tool.invoke({"type": "tool_call", "id": "1", "name": "list_my_records",
+                        "args": {"kind": "medications", "patient_id": str(aja)}}).content
+    assert text.startswith("Your medications (showing 1 of 2; use search_my_records for others):")

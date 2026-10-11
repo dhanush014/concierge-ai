@@ -3,7 +3,9 @@
     uv run --project api evals/run_answers.py
 
 Runs the real agent graph (safety check + tool loop) on the 17 policy facts
-(policy_facts.json) and the 17 record questions (retrieval_cases.json):
+(policy_facts.json), the 17 record questions (retrieval_cases.json) and the not-found
+questions (not_found_cases.json: a condition the record doesn't list; the answer must
+not say they don't have it - see 'forbid'; nothing to cite):
   correct  every expected value appears in the answer (case-insensitive; dashes and
            spaces normalized; an item that is a list is a set of alternatives)
   cited    at least one source the answer cites is a right chunk (same gold chunks
@@ -12,6 +14,7 @@ and lists the tools each question used. Needs GROQ_API_KEY in .env, the seed and
 scripts/ingest.py. About 100 Groq calls.
 """
 
+import argparse
 import json
 import re
 import sys
@@ -30,6 +33,7 @@ os.environ.setdefault("LANGSMITH_TRACING", "false")
 from langgraph.graph import START, StateGraph  # noqa: E402
 
 from app.agent.graph import ChatState, add_agent, turn_input, turn_tool_messages  # noqa: E402
+from run_retrieval import Case  # noqa: E402
 from app.agent.llm import llm_mode  # noqa: E402
 from app.agent.record_tools import cited_sources, tag_for  # noqa: E402
 from app.db import open_pool  # noqa: E402
@@ -41,6 +45,7 @@ RETRIES = 3
 
 def normalize(text: str) -> str:
     text = unicodedata.normalize("NFKC", text).lower()
+    text = re.sub("[‘’ʼ]", "'", text)  # curly apostrophes -> "'"
     return re.sub(r"[‐-―−]", "-", text)  # typographic dashes -> "-"
 
 
@@ -53,6 +58,18 @@ def expectations() -> dict[str, list]:
     facts = json.loads((ROOT / "evals" / "policy_facts.json").read_text())["facts"]
     cases = json.loads((ROOT / "evals" / "retrieval_cases.json").read_text())["cases"]
     return {f["question"]: f["expect"] for f in facts} | {c["question"]: c["expect"] for c in cases}
+
+
+def not_found_cases(conn) -> tuple[list[Case], dict[str, list]]:
+    spec = json.loads((ROOT / "evals" / "not_found_cases.json").read_text())["cases"]
+    cases, forbid = [], {}
+    for c in spec:
+        first, last = c["patient"].split(" ", 1)
+        pid = conn.execute("select id from public.patients where first_name = %s and last_name = %s",
+                           (first, last)).fetchone()["id"]
+        cases.append(Case("not-found", c["question"], pid, set(), c["patient"]))
+        forbid[c["question"]] = c["forbid"]
+    return cases, forbid
 
 
 def ask(graph, question: str, patient_id) -> tuple[dict, float]:
@@ -70,6 +87,9 @@ def ask(graph, question: str, patient_id) -> tuple[dict, float]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--only", choices=["policy", "record", "not-found"], help="run one kind of question")
+    args = parser.parse_args()
     assert llm_mode() == "groq", "run_answers.py needs the real LLM: unset LLM_FAKE"
     pool = open_pool()
     g = StateGraph(ChatState)
@@ -77,8 +97,12 @@ def main() -> None:
     g.add_edge(START, "safety_check")
     graph = g.compile()
     with pool.connection() as conn:
-        cases = policy_cases(conn) + record_cases(conn)
-    expect = expectations()
+        missing, forbid = not_found_cases(conn)
+        cases = policy_cases(conn) + record_cases(conn) + missing
+    if args.only:
+        cases = [c for c in cases if c.kind == args.only]
+    expect = expectations() | {
+        c["question"]: c["expect"] for c in json.loads((ROOT / "evals" / "not_found_cases.json").read_text())["cases"]}
     embed.embed_query("warm up")
     rerank.score("warm up", ["warm up"])
 
@@ -91,24 +115,28 @@ def main() -> None:
         gold_tags = {tag_for(s) for s in case.gold}
         row = {
             "kind": case.kind, "question": case.question, "safety": state.get("safety"),
-            "correct": state.get("safety") == "ok" and all(contains(answer, e) for e in expect[case.question]),
-            "cited": any(s["tag"] in gold_tags for s in cited),
+            "correct": state.get("safety") == "ok" and all(contains(answer, e) for e in expect[case.question])
+            and not any(contains(answer, f) for f in forbid.get(case.question, [])),
+            "cited": any(s["tag"] in gold_tags for s in cited) if case.gold else None,  # not-found: n/a
             "tools": [m.name for m in tools],
             "answer": answer, "secs": secs,
         }
         results.append(row)
-        mark = ("✓" if row["correct"] else "✗") + ("✓" if row["cited"] else "✗")
+        mark = ("✓" if row["correct"] else "✗") + {True: "✓", False: "✗", None: "-"}[row["cited"]]
         print(f"{i:2}. {mark} {secs:4.1f}s {case.question}  tools={row['tools']}")
         time.sleep(1)  # be gentle with Groq rate limits
 
     print("\nRESULTS (correct = expected value in the answer; cited = cites a right source)")
-    for kind in ("policy", "record"):
+    for kind in ("policy", "record", "not-found"):
         rows = [r for r in results if r["kind"] == kind]
+        if not rows:
+            continue
+        cited = f"{sum(bool(r['cited']) for r in rows)}/{len(rows)}" if kind != "not-found" else "n/a"
         print(f"  {kind + 's':9} correct {sum(r['correct'] for r in rows)}/{len(rows)}  "
-              f"cited {sum(r['cited'] for r in rows)}/{len(rows)}  "
+              f"cited {cited}  "
               f"avg {sum(r['secs'] for r in rows) / len(rows):.1f}s")
     print(f"  {'all':9} correct {sum(r['correct'] for r in results)}/{len(results)}  "
-          f"cited {sum(r['cited'] for r in results)}/{len(results)}")
+          f"cited {sum(bool(r['cited']) for r in results)}/{sum(r['cited'] is not None for r in results)}")
     calls = {}
     for r in results:
         for t in r["tools"]:
@@ -117,10 +145,13 @@ def main() -> None:
 
     print("\nNOT CORRECT OR NOT CITED:")
     for r in results:
-        if not (r["correct"] and r["cited"]):
+        if not r["correct"] or r["cited"] is False:
             print(f"\n  [{r['kind']}] {r['question']}  safety={r['safety']} correct={r['correct']} cited={r['cited']}")
             print(f"    tools: {r['tools']}")
             print("    answer: " + r["answer"].replace("\n", " ")[:400])
+    for r in results:
+        if r["kind"] == "not-found" and r["correct"]:
+            print(f"\n  [not-found, passed] {r['question']}\n    answer: " + r["answer"].replace("\n", " ")[:400])
     pool.close()
 
 

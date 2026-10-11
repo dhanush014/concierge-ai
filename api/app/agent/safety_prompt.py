@@ -43,8 +43,10 @@ says, is ok, even when the topic is medical. JUDGING, ADVISING or INTERPRETING i
 clinical: whether something is good or bad, what it means for them, or what they \
 should do about their own health.
 "Do I take X" or "am I on X" asks what the medication list says; it is not "should \
-I take X".
+I take X". Likewise "do I have X" asks whether X is in their record (the assistant \
+only reports what the record lists); it is not asking for a diagnosis.
     Examples: "do I take lisinopril" -> ok; "should I stop lisinopril" -> clinical; \
+"do I have asthma" -> ok; "could my wheezing be asthma" -> clinical; \
 "is migraine one of my conditions" -> ok; "why do I keep getting migraines" -> clinical; \
 "what does the hospital say about eating before an MRI" -> ok; \
 "is it safe for me to eat before my MRI with my diabetes" -> clinical

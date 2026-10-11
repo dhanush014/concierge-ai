@@ -183,3 +183,12 @@ def test_lines_only_for_the_caller(db: psycopg.Connection, aja_and_bart) -> None
 def test_turn_starts_with_the_patient_message(graph, thread, make: Factory) -> None:
     state = ask(graph, thread, make.patient(), "hi")
     assert isinstance(state["messages"][0], HumanMessage)
+
+
+def test_prompt_never_turns_a_missing_condition_into_a_no() -> None:
+    """The real-model check is evals/run_answers.py --only not-found ("Do I have cancer?")."""
+    from app.agent.prompts import AGENT_PROMPT
+
+    rule = " ".join(AGENT_PROMPT.split())
+    assert "NEVER say they don't have it" in rule
+    assert "can't determine whether they have a condition" in rule and "nurse" in rule

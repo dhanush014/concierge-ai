@@ -49,8 +49,10 @@ def make_tools(pool: ConnectionPool) -> list[BaseTool]:
         conditions, allergies, immunizations or visits (past clinical encounters).
         Repeats are collapsed; current (active) items first."""
         with pool.connection() as conn:
-            lines = rt.list_records(conn, UUID(patient_id), kind)
-        return rt.render(f"Your {kind}:", lines, f"No {kind} found in your record.")
+            lines, total = rt.list_records(conn, UUID(patient_id), kind)
+        # A cut list must say so: "not in this list" must never read as "not in the record".
+        more = f" (showing {len(lines)} of {total}; use search_my_records for others)" if total > len(lines) else ""
+        return rt.render(f"Your {kind}{more}:", lines, f"No {kind} found in your record.")
 
     @tool(response_format="content_and_artifact")
     def search_my_records(query: str, patient_id: PatientId) -> tuple[str, list[dict]]:

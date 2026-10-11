@@ -46,12 +46,16 @@ def verdict(text: str) -> tuple[str, str]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--only", help="only cases with this source (e.g. heldout)")
+    parser.add_argument("--escalate-only", action="store_true",
+                        help="only escalate cases: checks recall with fewer Groq tokens")
     args = parser.parse_args()
     assert llm_mode() == "groq", "needs the real LLM: unset LLM_FAKE"
 
     cases = json.loads((ROOT / "evals" / "safety_cases.json").read_text())["cases"]
     if args.only:
         cases = [c for c in cases if c["source"] == args.only]
+    if args.escalate_only:
+        cases = [c for c in cases if c["expected"] != "ok"]
     rows = []
     for c in cases:
         category, source = verdict(c["text"])
