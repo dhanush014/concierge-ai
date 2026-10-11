@@ -1,5 +1,6 @@
-"""Ingest policy docs and patient records into `chunks`. Run via scripts/ingest.py."""
+"""Ingest policy docs, contract docs and patient records into `chunks`. Run via scripts/ingest.py."""
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import date
@@ -16,6 +17,8 @@ log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[3]
 POLICY_DIR = ROOT / "data" / "policies"
+CONTRACTS_DIR = ROOT / "data" / "contracts"
+PAYERS_FILE = ROOT / "data" / "payers.json"
 SYNTHEA_DIR = ROOT / "data" / "synthea"
 
 
@@ -30,6 +33,21 @@ def ingest_policies(conn: psycopg.Connection, folder: Path = POLICY_DIR, namespa
     chunks = [c for path in policy_files(folder) for c in policy_chunks(path, folder, namespace)]
     check_unique(chunks)
     return sync(conn, chunks, Scope(namespace=namespace))
+
+
+def ingest_contracts(
+    conn: psycopg.Connection, folder: Path = CONTRACTS_DIR, namespace: str = "contract",
+    payers_file: Path = PAYERS_FILE,
+) -> Counts:
+    """One doc per payer: data/contracts/<slug>.md, tagged with that payer (data/payers.json)."""
+    payer_by_slug = {p["slug"]: p["payer"] for p in json.loads(payers_file.read_text())["payers"]}
+    chunks = []
+    for path in policy_files(folder):
+        if path.stem not in payer_by_slug:
+            raise ValueError(f"{path.name}: no payer with slug {path.stem!r} in {payers_file.name}")
+        chunks.extend(policy_chunks(path, folder, namespace, "contract", payer_by_slug[path.stem]))
+    check_unique(chunks)
+    return sync(conn, chunks, Scope(namespace=namespace, source_type="contract"))
 
 
 @dataclass

@@ -1,0 +1,17 @@
+{
+  "about": "Fictional payers for the demo. Each stands in for one payer in the Synthea data (synthea_payer), so patients keep their real payer relationship without using a real insurer's name, card or terms. network_contracts is seeded from this file; contract docs are data/contracts/<slug>.md.",
+  "payers": [
+    {"payer": "Keystone Community Care", "plan_name": "Keystone Medicaid Choice", "slug": "keystone-community-care",
+     "synthea_payer": "Medicaid", "in_network": true, "notes": "State Medicaid managed-care plan"},
+    {"payer": "Summit Health Partners", "plan_name": "Summit PPO 1500", "slug": "summit-health-partners",
+     "synthea_payer": "Cigna Health", "in_network": true, "notes": "Commercial PPO"},
+    {"payer": "Allegheny Shield", "plan_name": "Allegheny Shield Blue PPO", "slug": "allegheny-shield",
+     "synthea_payer": "Blue Cross Blue Shield", "in_network": true, "notes": "Commercial PPO"},
+    {"payer": "Riverbend Health", "plan_name": "Riverbend Silver HMO", "slug": "riverbend-health",
+     "synthea_payer": "Anthem", "in_network": true, "notes": "Commercial HMO; referrals needed for specialists"},
+    {"payer": "Liberty Senior Advantage", "plan_name": "Liberty Senior Advantage Plus", "slug": "liberty-senior-advantage",
+     "synthea_payer": "Medicare", "in_network": true, "notes": "Medicare Advantage plan"},
+    {"payer": "Northstar Benefits", "plan_name": "Northstar Essential EPO", "slug": "northstar-benefits",
+     "synthea_payer": "Humana", "in_network": false, "notes": "Not contracted with Riverside Health"}
+  ]
+}

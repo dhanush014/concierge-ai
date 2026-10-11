@@ -5,6 +5,7 @@
 """Seed patients, doctors, slots and appointments into the local database.
 
 Run from anywhere:  uv run scripts/seed.py
+Payers only:        uv run scripts/seed.py --network-only   (leaves everything else alone)
 
 Clears the tables and re-inserts everything in one transaction, so running it twice
 gives the same counts. Then creates the demo logins (see seed_auth.py). Ids are derived from the source data, so they are stable
@@ -12,6 +13,7 @@ across runs. Appointments are inserted directly (book_slot rejects past slots).
 """
 
 import json
+import sys
 import os
 import random
 import re
@@ -28,6 +30,7 @@ from seed_auth import DemoLogin, email_for, seed_logins
 ROOT = Path(__file__).resolve().parents[1]
 SYNTHEA_DIR = ROOT / "data" / "synthea"
 DOCTORS_FILE = ROOT / "data" / "doctors.json"
+PAYERS_FILE = ROOT / "data" / "payers.json"
 ENV_FILE = ROOT / ".env"
 
 CLINIC_TZ = ZoneInfo("America/New_York")
@@ -194,11 +197,27 @@ def assign_appointments(
     return rows
 
 
+def seed_network_contracts(cur: psycopg.Cursor) -> int:
+    """Replace network_contracts with data/payers.json (fictional payers). Returns the count."""
+    payers = json.loads(PAYERS_FILE.read_text())["payers"]
+    cur.execute("delete from public.network_contracts")
+    cur.executemany(
+        "insert into public.network_contracts (payer, plan_name, in_network, notes) values (%s, %s, %s, %s)",
+        [(p["payer"], p["plan_name"], p["in_network"], p["notes"]) for p in payers],
+    )
+    return len(payers)
+
+
 def main() -> None:
     load_env()
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         raise SystemExit(f"DATABASE_URL is not set (looked in {ENV_FILE})")
+
+    if "--network-only" in sys.argv:  # refresh payers without touching anything else
+        with psycopg.connect(db_url) as conn, conn.cursor() as cur:
+            print(f"network_contracts: {seed_network_contracts(cur)} payers from {PAYERS_FILE.name}")
+        return
 
     now = datetime.now(timezone.utc)
     today = now.astimezone(CLINIC_TZ).date()
@@ -210,10 +229,15 @@ def main() -> None:
 
     with psycopg.connect(db_url) as conn, conn.cursor() as cur:
         # One transaction: either everything is replaced or nothing changes.
+        # Conversations are deleted (not truncated) so their trigger also clears their
+        # LangGraph state; everything else that hangs off patients is truncated with them.
+        cur.execute("delete from public.conversations")
         cur.execute(
-            "truncate public.profiles, public.appointments, public.slots,"
-            " public.doctors, public.patients"
+            "truncate public.profiles, public.appointments, public.slots, public.doctors,"
+            " public.patients, public.documents, public.chunks, public.patient_insurance,"
+            " public.network_contracts"
         )
+        seed_network_contracts(cur)
         cur.executemany(
             "insert into public.patients (id, synthea_id, first_name, last_name, birth_date)"
             " values (%s, %s, %s, %s, %s)",
@@ -240,6 +264,7 @@ def main() -> None:
 
         print_summary(cur, patients, appointments, now)
         print_logins(logins)
+    print("\nRecord and policy chunks were cleared: run `uv run --project api scripts/ingest.py --only all`.")
 
 
 def demo_logins(patients: list[Patient]) -> list[DemoLogin]:
@@ -261,7 +286,7 @@ def print_logins(logins: list[DemoLogin]) -> None:
 
 def print_summary(cur: psycopg.Cursor, patients, appointments, now: datetime) -> None:
     print("Seeded:")
-    for table in ("patients", "doctors", "slots", "appointments", "profiles"):
+    for table in ("patients", "doctors", "slots", "appointments", "profiles", "network_contracts"):
         cur.execute(f"select count(*) from public.{table}")
         print(f"  {table:<18}{cur.fetchone()[0]:>6}")
     cur.execute("select count(*) from public.open_slots")

@@ -9,11 +9,11 @@ from uuid import UUID
 @dataclass(frozen=True)
 class Chunk:
     source_id: str  # stable key, e.g. "policy:parking.md#Validation#0", "fhir:Observation/<id>"
-    source_type: Literal["policy", "record"]
+    source_type: Literal["policy", "record", "contract"]
     doc_title: str  # policy: document title; record: event type ("Lab result")
     section: str | None  # policy: heading path; record: item name
     content: str  # what gets embedded and later quoted; self-contained
     date: date | None = None
     patient_id: UUID | None = None
     sensitive: bool = False
-    payer: str | None = None
+    payer: str | None = None  # contract chunks: which (fictional) payer's plan document

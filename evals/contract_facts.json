@@ -1,0 +1,21 @@
+{
+  "about": "Checkable facts from data/contracts/ (fictional payers, data/payers.json). Each question is asked for one payer's plan: retrieval must find doc + section within that payer's chunks; the answer must contain every 'expect' item (a list = alternatives). Used by Phase 5 step 2.",
+  "facts": [
+    {"payer": "Riverbend Health", "question": "What is my specialist copay?", "expect": ["$50"], "doc": "riverbend-health.md", "section": "Copays"},
+    {"payer": "Riverbend Health", "question": "Do I need a referral to see a specialist?", "expect": ["referral"], "doc": "riverbend-health.md", "section": "Referrals"},
+    {"payer": "Riverbend Health", "question": "Does an MRI need prior authorization?", "expect": ["prior authorization"], "doc": "riverbend-health.md", "section": "Prior authorization"},
+    {"payer": "Riverbend Health", "question": "What is my deductible?", "expect": ["$1,000"], "doc": "riverbend-health.md", "section": "Deductible and out-of-pocket maximum"},
+    {"payer": "Riverbend Health", "question": "Are hearing aids covered?", "expect": ["not covered"], "doc": "riverbend-health.md", "section": "Not covered"},
+    {"payer": "Liberty Senior Advantage", "question": "How much is a primary care visit?", "expect": ["$0"], "doc": "liberty-senior-advantage.md", "section": "Copays"},
+    {"payer": "Liberty Senior Advantage", "question": "What is the emergency room copay?", "expect": ["$110"], "doc": "liberty-senior-advantage.md", "section": "Copays"},
+    {"payer": "Liberty Senior Advantage", "question": "Does my plan cover glasses?", "expect": ["$150"], "doc": "liberty-senior-advantage.md", "section": "Extra benefits"},
+    {"payer": "Liberty Senior Advantage", "question": "What is my out-of-pocket maximum?", "expect": ["$4,900"], "doc": "liberty-senior-advantage.md", "section": "Deductible and out-of-pocket maximum"},
+    {"payer": "Liberty Senior Advantage", "question": "How long do I have to appeal a denied claim?", "expect": ["65 days"], "doc": "liberty-senior-advantage.md", "section": "Appeals"},
+    {"payer": "Summit Health Partners", "question": "What is the urgent care copay?", "expect": ["$75"], "doc": "summit-health-partners.md", "section": "Copays"},
+    {"payer": "Summit Health Partners", "question": "Is acupuncture covered?", "expect": ["not covered"], "doc": "summit-health-partners.md", "section": "Not covered"},
+    {"payer": "Allegheny Shield", "question": "Does a CT scan need prior authorization?", "expect": [["do not need", "does not need", "doesn't need", "no prior authorization", "not required"]], "doc": "allegheny-shield.md", "section": "Prior authorization"},
+    {"payer": "Allegheny Shield", "question": "How much is a telehealth visit?", "expect": ["$15"], "doc": "allegheny-shield.md", "section": "Copays"},
+    {"payer": "Keystone Community Care", "question": "Can I get a ride to my appointment?", "expect": [["2 business days", "two business days"]], "doc": "keystone-community-care.md", "section": "Extra benefits"},
+    {"payer": "Keystone Community Care", "question": "How much is a brand-name prescription?", "expect": ["$3"], "doc": "keystone-community-care.md", "section": "Copays"}
+  ]
+}

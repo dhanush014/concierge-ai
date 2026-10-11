@@ -37,14 +37,16 @@ class Counts:
 
 @dataclass(frozen=True)
 class Scope:
-    """Which existing rows this run owns: a policy namespace, or these patients' records."""
+    """Which existing rows this run owns: a doc namespace (policies or contracts), or
+    these patients' records."""
 
-    namespace: str | None = None  # policies: source_id starts with "<namespace>:"
+    namespace: str | None = None  # docs: source_id starts with "<namespace>:"
     patient_ids: tuple[UUID, ...] = ()  # records
+    source_type: str = "policy"  # what the namespace holds: "policy" or "contract"
 
     def where(self) -> tuple[str, tuple]:
         if self.namespace is not None:
-            return "source_type = 'policy' and source_id like %s", (f"{self.namespace}:%",)
+            return "source_type = %s and source_id like %s", (self.source_type, f"{self.namespace}:%")
         return "source_type = 'record' and patient_id = any(%s)", (list(self.patient_ids),)
 
 

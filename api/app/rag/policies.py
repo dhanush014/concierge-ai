@@ -1,4 +1,4 @@
-"""Hospital policy docs (markdown) -> chunks, split by heading.
+"""Hospital policy docs and insurer contract docs (markdown) -> chunks, split by heading.
 
 Each `##`/`###` section becomes a chunk whose text starts with its heading path
 ("Parking > Validation"), so a chunk makes sense on its own and the heading words are
@@ -47,8 +47,11 @@ def windows(text: str) -> list[str]:
         start += WINDOW_WORDS - OVERLAP_WORDS
 
 
-def policy_chunks(path: Path, root: Path, namespace: str = "policy") -> list[Chunk]:
-    """Chunks for one doc. source_id = "<namespace>:<file>#<heading path>#<part>"."""
+def policy_chunks(
+    path: Path, root: Path, namespace: str = "policy", source_type: str = "policy", payer: str | None = None
+) -> list[Chunk]:
+    """Chunks for one doc. source_id = "<namespace>:<file>#<heading path>#<part>".
+    Contract docs: source_type "contract" and the payer they belong to."""
     rel = path.relative_to(root).as_posix()
     title, parts = sections(path.read_text(), fallback_title=path.stem.replace("-", " ").capitalize())
     chunks = []
@@ -57,10 +60,11 @@ def policy_chunks(path: Path, root: Path, namespace: str = "policy") -> list[Chu
             chunks.append(
                 Chunk(
                     source_id=f"{namespace}:{rel}#{heading}#{i}",
-                    source_type="policy",
+                    source_type=source_type,
                     doc_title=title,
                     section=heading,
                     content=f"{title} > {heading}\n\n{piece}",
+                    payer=payer,
                 )
             )
     return chunks

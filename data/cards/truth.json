@@ -1,0 +1,71 @@
+{
+  "about": "True field values of each sample card (fictional payers, data/payers.json). Made by scripts/make_cards.py; every card is marked SAMPLE.",
+  "cards": [
+    {
+      "file": "aja.png",
+      "patient": "Aja Casper",
+      "variation": "clean",
+      "payer": "Riverbend Health",
+      "plan_name": "Riverbend Silver HMO",
+      "member_name": "Aja Casper",
+      "member_id": "RBH556706360",
+      "group_number": "93771",
+      "in_network": true
+    },
+    {
+      "file": "bart.png",
+      "patient": "Bart Brekke",
+      "variation": "clean",
+      "payer": "Liberty Senior Advantage",
+      "plan_name": "Liberty Senior Advantage Plus",
+      "member_name": "Bart Brekke",
+      "member_id": "LSA110147939",
+      "group_number": "17696",
+      "in_network": true
+    },
+    {
+      "file": "marissa.png",
+      "patient": "Marissa Dori",
+      "variation": "clean",
+      "payer": "Northstar Benefits",
+      "plan_name": "Northstar Essential EPO",
+      "member_name": "Marissa Dori",
+      "member_id": "NSB215503225",
+      "group_number": "10751",
+      "in_network": false
+    },
+    {
+      "file": "aja-rotated.png",
+      "patient": "Aja Casper",
+      "variation": "rotated",
+      "payer": "Riverbend Health",
+      "plan_name": "Riverbend Silver HMO",
+      "member_name": "Aja Casper",
+      "member_id": "RBH556706360",
+      "group_number": "93771",
+      "in_network": true
+    },
+    {
+      "file": "aja-lowres.jpg",
+      "patient": "Aja Casper",
+      "variation": "lowres",
+      "payer": "Riverbend Health",
+      "plan_name": "Riverbend Silver HMO",
+      "member_name": "Aja Casper",
+      "member_id": "RBH556706360",
+      "group_number": "93771",
+      "in_network": true
+    },
+    {
+      "file": "bart-alt-layout.png",
+      "patient": "Bart Brekke",
+      "variation": "alt-layout",
+      "payer": "Liberty Senior Advantage",
+      "plan_name": "Liberty Senior Advantage Plus",
+      "member_name": "Bart Brekke",
+      "member_id": "LSA110147939",
+      "group_number": "17696",
+      "in_network": true
+    }
+  ]
+}

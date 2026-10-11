@@ -83,15 +83,16 @@ slots              id, doctor_id, start_at (UTC), end_at, visit_type
                    unique (doctor_id, start_at)
 open_slots (view)  slots in the future with no 'booked' appointment
 appointments       id, patient_id, slot_id (unique while active), status ('booked'|'cancelled'), created_at
-network_contracts  id, payer, plan_name, in_network (bool), notes
+network_contracts  id, payer, plan_name, in_network (bool), notes; unique (payer, plan_name)
+                   seeded from data/payers.json: FICTIONAL payers, each standing in for a Synthea payer
 patient_insurance  id, patient_id, payer, plan_name, member_id, group_number,
                    card_path (Storage), status ('extracted'|'confirmed'), created_at
 documents          id, patient_id, kind ('insurance_card'|'referral'), storage_path, created_at,
                    original_filename (sanitized, max 200), content_type (jpeg|png|pdf), size_bytes (<= 10 MB)
                    file in private Storage bucket patient-docs at <patient_id>/<document_id>.<ext>
 chunks             id, source_id (stable source key, unique), content, embedding vector(384),
-                   source_type ('policy'|'record'), patient_id (null for policy), payer (null unless
-                   contract doc), doc_title, section, date, sensitive (bool), content_hash
+                   source_type ('policy'|'record'|'contract'), patient_id (records only), payer
+                   (contract chunks only), doc_title, section, date, sensitive (bool), content_hash
 conversations      id, patient_id, status ('bot'|'handoff'|'closed'), created_at
 messages           id, conversation_id, sender ('patient'|'assistant'|'staff'), staff_id, sources (jsonb),
                    kind ('text'|'emergency'|'handoff'|'notice', how the UI shows it), content, created_at
@@ -110,7 +111,8 @@ read handoffs, conversations, messages.
 ## RAG design
 **Ingest** (script, re-runnable):
 - Policy docs (`data/policies/*.md`): split by heading, ~400 tokens, 50 overlap, keep the heading in the chunk.
-- Insurance contract docs (`data/contracts/<payer>.md`): same, tagged with `payer`.
+- Insurance contract docs (`data/contracts/<payer-slug>.md`, fictional): same, `source_type = 'contract'`,
+  tagged with `payer`; searched one payer at a time, never mixed into hospital policy search.
 - Patient records (Synthea FHIR): one chunk per event (one lab, one med, one visit),
   date and type written into the text. Last 3 years only, except ongoing items (active
   conditions, allergies and prescriptions), which are kept whatever their start date.

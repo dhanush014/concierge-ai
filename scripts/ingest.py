@@ -1,6 +1,7 @@
-"""Ingest RAG chunks: hospital policy docs and patient records (Synthea), embedded locally.
+"""Ingest RAG chunks: hospital policy docs, insurer contract docs (fictional payers) and
+patient records (Synthea), embedded locally.
 
-    uv run --project api scripts/ingest.py --only all        # or: policies | records
+    uv run --project api scripts/ingest.py --only all        # or: policies | contracts | records
 
 Re-runnable: unchanged chunks are not embedded again, chunks whose source is gone are
 removed. Needs local Supabase running and the seed (patients) loaded.
@@ -17,12 +18,14 @@ import psycopg  # noqa: E402
 from psycopg.rows import dict_row  # noqa: E402
 
 from app.db import database_url  # noqa: E402
-from app.rag.ingest import POLICY_DIR, SYNTHEA_DIR, ingest_policies, ingest_records  # noqa: E402
+from app.rag.ingest import (  # noqa: E402
+    CONTRACTS_DIR, POLICY_DIR, SYNTHEA_DIR, ingest_contracts, ingest_policies, ingest_records,
+)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--only", choices=["policies", "records", "all"], default="all")
+    parser.add_argument("--only", choices=["policies", "contracts", "records", "all"], default="all")
     args = parser.parse_args()
 
     with psycopg.connect(database_url(), row_factory=dict_row) as conn:  # one transaction
@@ -30,6 +33,10 @@ def main() -> None:
             start = time.monotonic()
             counts = ingest_policies(conn)
             print(f"Policies ({POLICY_DIR.name}/): {counts}  [{time.monotonic() - start:.1f}s]")
+        if args.only in ("contracts", "all"):
+            start = time.monotonic()
+            counts = ingest_contracts(conn)
+            print(f"Contracts ({CONTRACTS_DIR.name}/): {counts}  [{time.monotonic() - start:.1f}s]")
         if args.only in ("records", "all"):
             start = time.monotonic()
             result = ingest_records(conn)

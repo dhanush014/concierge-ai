@@ -30,11 +30,11 @@ uv run scripts/seed.py    # 20 patients, 8 doctors, slots for today ±30 days
 
 Reseed before a demo: slots and "upcoming" appointments are relative to the day you seed.
 
-**RAG ingestion** (policy docs in `data/policies/` + patient records, embedded locally with
+**RAG ingestion** (policy docs in `data/policies/`, contract docs in `data/contracts/` + patient records, embedded locally with
 `BAAI/bge-small-en-v1.5`; needs the seed run first):
 
 ```bash
-uv run --project api scripts/ingest.py --only all   # or: policies | records
+uv run --project api scripts/ingest.py --only all   # or: policies | contracts | records
 ```
 
 Re-runnable: unchanged chunks aren't embedded again, chunks whose source is gone are removed.
@@ -58,6 +58,18 @@ uv run --project api evals/run_safety.py    # real Groq LLM: escalation recall, 
 ```
 The first run downloads the model (~130 MB) if it isn't cached. Checkable policy facts for
 later tests: `evals/policy_facts.json`.
+
+**Insurance demo data.** Payers are fictional (`data/payers.json`), each standing in for a
+payer in the Synthea data; 5 are in network, 1 is not. `uv run scripts/seed.py --network-only`
+refreshes `network_contracts` without touching anything else. Sample cards (all marked SAMPLE)
+and their true field values (`data/cards/truth.json`):
+
+```bash
+uv run --project api scripts/make_cards.py
+```
+
+Note: a full `scripts/seed.py` resets patients and everything that hangs off them (documents,
+conversations, chunks); re-run the ingestion afterwards.
 
 **Tests** (API, against local Supabase; they create and delete their own data):
 
