@@ -195,3 +195,13 @@ export async function assertFakeLlm(): Promise<void> {
     );
   }
 }
+
+/** Delete a patient's insurance rows created at or after `since` (ISO). Returns how many. */
+export async function purgeInsuranceSince(email: string, since: string): Promise<number> {
+  const patientId = await patientIdFor(email);
+  const deleted = await rest<{ id: string }[]>(
+    "DELETE",
+    `patient_insurance?patient_id=eq.${patientId}&created_at=gte.${encodeURIComponent(since)}`,
+  );
+  return deleted.length;
+}

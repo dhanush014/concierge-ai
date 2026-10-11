@@ -10,7 +10,7 @@ from app.agent.graph import build_graph
 from app.agent.llm import check_mode_at_startup
 from app.db import db_error_handler, open_pool
 from app.rag.warmup import warm_models_in_background
-from app.routes import appointments, chat, documents, handoffs
+from app.routes import appointments, chat, documents, handoffs, insurance
 
 
 @asynccontextmanager
@@ -42,6 +42,7 @@ app.include_router(appointments.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
 app.include_router(handoffs.router)
+app.include_router(insurance.router)
 
 
 @app.get("/health")

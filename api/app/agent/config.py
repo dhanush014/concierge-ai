@@ -6,6 +6,9 @@ from zoneinfo import ZoneInfo
 SAFETY_MODEL = "openai/gpt-oss-20b"
 AGENT_MODEL = "openai/gpt-oss-120b"  # picks tools and writes the answer
 SUMMARY_MODEL = "openai/gpt-oss-20b"  # one-line handoff summary for staff
+# Reads insurance cards. The only vision-capable model Groq lists (checked 2026-10-11);
+# gpt-oss rejects image input.
+VISION_MODEL = "qwen/qwen3.8-27b"
 
 # Local embeddings for RAG (sentence-transformers, runs on this machine).
 EMBED_MODEL = "BAAI/bge-small-en-v1.5"
@@ -20,6 +23,7 @@ RETRIEVE_TOP_N = 5  # kept after reranking
 SAFETY_TIMEOUT_SECONDS = 3.0
 AGENT_TIMEOUT_SECONDS = 30.0
 SUMMARY_TIMEOUT_SECONDS = 5.0
+VISION_TIMEOUT_SECONDS = 30.0
 
 # Same clinic time zone as the web app (web/lib/time.ts). Tool results are turned
 # into clinic time in code so the LLM never does time-zone math.

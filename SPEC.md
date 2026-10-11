@@ -35,9 +35,12 @@ readable text, no decoration.
 
 ### 2. Insurance check (multimodal + RAG)
 1. Patient uploads a card photo; file saved to Supabase Storage.
-2. Vision model extracts: payer, plan name, member ID, group number.
+2. Vision model (Groq `qwen/qwen3.8-27b`) extracts: payer, plan name, member name, member ID,
+   group number. A field it can't read is null, never guessed.
 3. Patient reviews and confirms the fields (they can edit them).
-4. In-network check is a **database lookup** in `network_contracts` (yes/no). Never the LLM.
+4. In-network check is a **database lookup** in `network_contracts`, matched in plain code
+   (case/space-insensitive + aliases in data/payers.json): in_network, out_of_network or
+   not_on_file. Never the LLM. A card whose name isn't the patient's gets a warning.
 5. If in network, RAG over that payer's contract docs answers coverage details
    (copay, prior authorization, covered services) with citations.
 6. Answer always ends with: "This is an estimate. Confirm with your insurer."
@@ -85,8 +88,9 @@ open_slots (view)  slots in the future with no 'booked' appointment
 appointments       id, patient_id, slot_id (unique while active), status ('booked'|'cancelled'), created_at
 network_contracts  id, payer, plan_name, in_network (bool), notes; unique (payer, plan_name)
                    seeded from data/payers.json: FICTIONAL payers, each standing in for a Synthea payer
-patient_insurance  id, patient_id, payer, plan_name, member_id, group_number,
-                   card_path (Storage), status ('extracted'|'confirmed'), created_at
+patient_insurance  id, patient_id, payer (null until read or typed; required when confirmed), plan_name,
+                   member_name, member_id, group_number, card_path (Storage),
+                   status ('extracted'|'confirmed'), created_at
 documents          id, patient_id, kind ('insurance_card'|'referral'), storage_path, created_at,
                    original_filename (sanitized, max 200), content_type (jpeg|png|pdf), size_bytes (<= 10 MB)
                    file in private Storage bucket patient-docs at <patient_id>/<document_id>.<ext>

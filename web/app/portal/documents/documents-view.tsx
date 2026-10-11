@@ -14,8 +14,19 @@ import {
   type DocumentKind,
   type PatientDocument,
 } from "@/lib/documents";
+import {
+  NETWORK,
+  confirmInsurance,
+  getMyInsurance,
+  messageFor as insuranceMessage,
+  readCard,
+  type CardFields,
+  type Insurance,
+} from "@/lib/insurance";
 import { useApi } from "@/lib/use-api";
+import { CardForm } from "./card-form";
 import { DocumentRow } from "./document-row";
+import { InsuranceSummary } from "./insurance-summary";
 import { Uploader } from "./uploader";
 
 const KINDS: DocumentKind[] = ["insurance_card", "referral"];
@@ -23,6 +34,11 @@ const KINDS: DocumentKind[] = ["insurance_card", "referral"];
 export function DocumentsView() {
   const router = useRouter();
   const docs = useApi("documents", listDocuments);
+  const insurance = useApi("insurance", getMyInsurance);
+  // The card being read (button busy), then what was read (the form).
+  const [readingId, setReadingId] = useState<string | null>(null);
+  const [read, setRead] = useState<{ insurance: Insurance; filename: string } | null>(null);
+  const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<Status>(null);
   const [uploadKind, setUploadKind] = useState<DocumentKind | null>(null);
   const [target, setTarget] = useState<PatientDocument | null>(null);
@@ -47,6 +63,40 @@ export function DocumentsView() {
       if (isStatus(error, 401)) return toLogin();
       setStatus({ kind: "error", text: messageFor(error) });
       if (isStatus(error, 404)) docs.reload();
+    }
+  }
+
+  async function readCardOf(doc: PatientDocument) {
+    setStatus(null);
+    setRead(null);
+    setReadingId(doc.id);
+    try {
+      setRead({ insurance: await readCard(doc.id), filename: doc.original_filename });
+    } catch (error) {
+      if (isStatus(error, 401)) return toLogin();
+      setStatus({
+        kind: "error",
+        text: insuranceMessage(error),
+        onRetry: isRetryable(error) ? () => readCardOf(doc) : undefined,
+      });
+    } finally {
+      setReadingId(null);
+    }
+  }
+
+  async function confirmCard(fields: CardFields) {
+    if (!read) return;
+    setSaving(true);
+    try {
+      const saved = await confirmInsurance(read.insurance.id, fields);
+      setRead(null);
+      setStatus({ kind: "success", text: `Saved: ${saved.payer}. ${NETWORK[saved.network].label}.` });
+      insurance.reload();
+    } catch (error) {
+      if (isStatus(error, 401)) return toLogin();
+      setStatus({ kind: "error", text: insuranceMessage(error) });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -81,6 +131,8 @@ export function DocumentsView() {
     <>
       <h1 className="mb-6 text-3xl font-semibold">Your documents</h1>
 
+      <InsuranceSummary insurance={insurance.error ? null : insurance.data} />
+
       <div className="mb-6 flex flex-wrap gap-3">
         {KINDS.map((kind) => (
           <button
@@ -99,6 +151,17 @@ export function DocumentsView() {
       </div>
 
       <StatusMessage status={shown} focus />
+
+      {read && (
+        <CardForm
+          key={read.insurance.id}
+          reading={read.insurance}
+          filename={read.filename}
+          pending={saving}
+          onConfirm={confirmCard}
+          onCancel={() => setRead(null)}
+        />
+      )}
 
       {uploadKind && (
         <Uploader
@@ -125,6 +188,8 @@ export function DocumentsView() {
               key={doc.id}
               doc={doc}
               onView={view}
+              onRead={readCardOf}
+              reading={readingId === doc.id}
               onDelete={(d, button) => {
                 opener.current = button;
                 setStatus(null);

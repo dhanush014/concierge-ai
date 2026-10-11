@@ -55,6 +55,11 @@ def remove(path: str) -> None:
     _check(resp, "delete")
 
 
+def download(path: str) -> bytes:
+    resp = client().get(f"/object/{BUCKET}/{path}")
+    return _check(resp, "download").content
+
+
 def signed_url(path: str) -> str:
     """A link anyone can open until it expires (SIGNED_URL_SECONDS)."""
     resp = client().post(f"/object/sign/{BUCKET}/{path}", json={"expiresIn": SIGNED_URL_SECONDS})

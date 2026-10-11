@@ -27,11 +27,12 @@ class FakeLLM:
             "safety": '{"category": "ok", "reason": "fake"}',
             "agent": "Fake answer.",
             "summary": "Patient asked to talk to someone.",
+            "vision": '{"payer": null, "plan_name": null, "member_name": null, "member_id": null, "group_number": null}',
         }
         self.agent_script: list[AIMessage] = []
         self.errors: dict[str, Exception] = {}
         self.delays: dict[str, float] = {}
-        self.prompts: dict[str, list[list[BaseMessage]]] = {"safety": [], "agent": [], "summary": []}
+        self.prompts: dict[str, list[list[BaseMessage]]] = {"safety": [], "agent": [], "summary": [], "vision": []}
         self.bound_tools: list[list[str]] = []  # tool names offered on each agent call
 
     def __call__(self, role: str) -> GenericFakeChatModel:

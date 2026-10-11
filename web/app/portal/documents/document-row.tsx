@@ -2,15 +2,20 @@
 
 import type { MouseEvent } from "react";
 import { KIND_LABEL, formatBytes, type PatientDocument } from "@/lib/documents";
+import { CARD_IMAGE_TYPES } from "@/lib/insurance";
 import { formatDate } from "@/lib/time";
 
 type Props = {
   doc: PatientDocument;
   onView: (doc: PatientDocument) => void;
   onDelete: (doc: PatientDocument, opener: HTMLButtonElement) => void;
+  /** Insurance-card photos only: read the card with the AI. */
+  onRead?: (doc: PatientDocument) => void;
+  reading?: boolean;
 };
 
-export function DocumentRow({ doc, onView, onDelete }: Props) {
+export function DocumentRow({ doc, onView, onDelete, onRead, reading = false }: Props) {
+  const readable = doc.kind === "insurance_card" && CARD_IMAGE_TYPES.includes(doc.content_type);
   const name = doc.original_filename;
   return (
     <li className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-line p-5">
@@ -23,7 +28,18 @@ export function DocumentRow({ doc, onView, onDelete }: Props) {
           {formatDate(doc.created_at)} · {formatBytes(doc.size_bytes)}
         </p>
       </div>
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
+        {readable && onRead && (
+          <button
+            type="button"
+            aria-label={`Read card ${name}`}
+            onClick={() => onRead(doc)}
+            disabled={reading}
+            className="min-h-11 rounded-md bg-accent px-4 font-semibold text-white hover:bg-accent-hover disabled:opacity-50"
+          >
+            {reading ? "Reading…" : "Read card"}
+          </button>
+        )}
         <button
           type="button"
           aria-label={`View ${name} (opens in a new tab)`}

@@ -56,6 +56,10 @@ uv run --project api evals/run_answers.py   # real Groq LLM: correct + cited, to
 ```bash
 uv run --project api evals/run_safety.py    # real Groq LLM: escalation recall, over-escalation
 ```
+
+```bash
+uv run --project api evals/run_extraction.py   # real vision model on data/cards/: field accuracy
+```
 The first run downloads the model (~130 MB) if it isn't cached. Checkable policy facts for
 later tests: `evals/policy_facts.json`.
 

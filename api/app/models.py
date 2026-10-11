@@ -115,3 +115,36 @@ StaffText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 
 class StaffMessageRequest(BaseModel):
     content: StaffText
+
+
+class CardFields(BaseModel):
+    """What an insurance card says. None = not printed or couldn't be read."""
+
+    payer: str | None = None
+    plan_name: str | None = None
+    member_name: str | None = None
+    member_id: str | None = None
+    group_number: str | None = None
+
+
+CardText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)]
+
+
+class CardConfirm(BaseModel):
+    """The fields as the patient confirmed them (possibly edited). Payer is required."""
+
+    payer: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    plan_name: CardText | None = None
+    member_name: CardText | None = None
+    member_id: CardText | None = None
+    group_number: CardText | None = None
+
+
+class Insurance(CardFields):
+    id: UUID
+    document_id: UUID | None  # the card it was read from, if it still exists
+    status: Literal["extracted", "confirmed"]
+    network: Literal["in_network", "out_of_network", "not_on_file"]  # plain-code lookup, never the LLM
+    matched_payer: str | None  # the payer on file it matched, if any
+    name_warning: str | None  # set when the card's name isn't the patient's
+    created_at: datetime
