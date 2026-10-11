@@ -1,4 +1,8 @@
-import type { MessageKind } from "@/lib/chat";
+import type { MessageKind, SourceRef } from "@/lib/chat";
+import { CLINIC_TZ } from "@/lib/time";
+
+// Records can be years old, so source dates include the year: "Nov 28, 2025".
+const SOURCE_DATE = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: CLINIC_TZ });
 
 export type ShownMessage = {
   key: string;
@@ -7,9 +11,46 @@ export type ShownMessage = {
   content: string;
   /** For staff messages: e.g. "Nurse Kim". */
   staffName?: string | null;
+  /** What an assistant answer cites (shown under it). */
+  sources?: SourceRef[] | null;
   /** Still streaming in. */
   pending?: boolean;
 };
+
+// [S-3f2a], [S-3f2a, S-91bc], or gpt-oss's own brackets 【S-3f2a】
+// A space before the tag goes with it; a line break stays.
+const CITATION = /[ \t]?[[【]([^\]】]*S-[0-9a-f]{4}[^\]】]*)[\]】]/g;
+
+/**
+ * The answer cites sources as [S-3f2a]; show them as [1], [2] matching the list
+ * under the reply. While streaming (sources not known yet), tags are hidden.
+ */
+export function withCitations(text: string, sources: SourceRef[] | null | undefined): string {
+  const number = new Map((sources ?? []).map((s, i) => [s.tag, i + 1]));
+  return text.replace(CITATION, (match: string, group: string, offset: number) => {
+    const nums = [...group.matchAll(/S-[0-9a-f]{4}/g)].map((m) => number.get(m[0])).filter((n) => n !== undefined);
+    const lineStart = offset === 0 || text[offset - 1] === "\n";
+    return nums.length ? `${lineStart ? "" : " "}[${[...new Set(nums)].join(", ")}]` : "";
+  });
+}
+
+function sourceLabel(s: SourceRef): string {
+  const parts = [s.title, s.section, s.date ? SOURCE_DATE.format(new Date(`${s.date}T12:00:00Z`)) : null].filter(Boolean);
+  return s.kind === "policy" ? `${s.title} › ${s.section ?? ""}` : parts.join(" · ");
+}
+
+function Sources({ sources }: { sources: SourceRef[] }) {
+  return (
+    <div className="mt-3 border-t border-line pt-2 text-sm">
+      <p className="font-semibold text-muted">Sources</p>
+      <ol className="list-decimal pl-5 text-muted">
+        {sources.map((s) => (
+          <li key={s.tag}>{sourceLabel(s)}</li>
+        ))}
+      </ol>
+    </div>
+  );
+}
 
 const bubble = "max-w-[85%] whitespace-pre-wrap break-words rounded-lg px-4 py-3";
 
@@ -88,7 +129,8 @@ function Message({ message: m }: { message: ShownMessage }) {
   return (
     <div className={`${bubble} bg-accent-soft text-ink`} aria-busy={m.pending || undefined}>
       <span className="sr-only">Assistant: </span>
-      {m.content || (m.pending ? <span className="text-muted">Thinking…</span> : null)}
+      {withCitations(m.content, m.sources) || (m.pending ? <span className="text-muted">Thinking…</span> : null)}
+      {!m.pending && m.sources && m.sources.length > 0 && <Sources sources={m.sources} />}
     </div>
   );
 }

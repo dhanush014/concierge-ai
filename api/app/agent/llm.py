@@ -13,19 +13,17 @@ from app.db import load_env
 
 log = logging.getLogger(__name__)
 
-Role = Literal["safety", "router", "answer", "summary"]
+Role = Literal["safety", "agent", "summary"]
 Mode = Literal["groq", "fake"]
 
 MODELS: dict[Role, str] = {
     "safety": config.SAFETY_MODEL,
-    "router": config.ROUTER_MODEL,
-    "answer": config.ANSWER_MODEL,
+    "agent": config.AGENT_MODEL,
     "summary": config.SUMMARY_MODEL,
 }
 TIMEOUTS: dict[Role, float] = {
     "safety": config.SAFETY_TIMEOUT_SECONDS,
-    "router": config.ROUTER_TIMEOUT_SECONDS,
-    "answer": config.ANSWER_TIMEOUT_SECONDS,
+    "agent": config.AGENT_TIMEOUT_SECONDS,
     "summary": config.SUMMARY_TIMEOUT_SECONDS,
 }
 

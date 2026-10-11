@@ -44,10 +44,14 @@ readable text, no decoration.
 
 ### 3. Ask (chat agent, LangGraph)
 ```
-message -> safety check -> route -> tool or RAG -> answer with sources
+message -> safety check -> agent (LLM + read-only tools, max 4 calls) -> answer citing sources
 ```
 - Safety check runs first on every message (see Handoff).
-- Tools: get my appointments, get my insurance status.
+- Tools: appointments, documents, lab results (grouped by test), record lists (meds,
+  conditions, allergies, immunizations, visits), record search, hospital policy search;
+  insurance status in Phase 5. The patient id is injected from the login, never the LLM.
+- Answers cite tool lines by tag; the cited sources are saved with the message
+  (`messages.sources`) and shown under the reply.
 - RAG sources: the patient's own records + hospital policy docs.
 - Never interprets results, never gives medical advice. Reports only what the records say.
 
@@ -89,7 +93,7 @@ chunks             id, source_id (stable source key, unique), content, embedding
                    source_type ('policy'|'record'), patient_id (null for policy), payer (null unless
                    contract doc), doc_title, section, date, sensitive (bool), content_hash
 conversations      id, patient_id, status ('bot'|'handoff'|'closed'), created_at
-messages           id, conversation_id, sender ('patient'|'assistant'|'staff'), staff_id,
+messages           id, conversation_id, sender ('patient'|'assistant'|'staff'), staff_id, sources (jsonb),
                    kind ('text'|'emergency'|'handoff'|'notice', how the UI shows it), content, created_at
                    deleting a conversation also deletes its LangGraph state (trigger)
 handoffs           id, conversation_id, reason ('emergency'|'clinical'|'wants_human'), summary,

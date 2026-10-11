@@ -6,8 +6,9 @@ Stream events (each `data: <json>`):
   {"type": "conversation", "id": ...}           first, always
   {"type": "token", "text": ...}                 zero or more; join them for the reply
   {"type": "notice", "text": ...}                a system line, e.g. "A nurse has been notified"
-  {"type": "done", "safety", "route", "kind", "status"}  last on success;
-                                                 status "handoff" = waiting for staff
+  {"type": "done", "safety", "tools", "kind", "status", "sources"}  last on success;
+                                                 status "handoff" = waiting for staff;
+                                                 tools = names called; sources = cited, in order
   {"type": "error", "message": "chat_failed"}    last on failure (patient message is kept)
 
 While a conversation is in handoff the agent stays silent: the patient's message is
@@ -30,7 +31,8 @@ from psycopg_pool import ConnectionPool
 
 from app import handoffs
 from app.agent import config as agent_config
-from app.agent.graph import turn_input
+from app.agent.graph import turn_input, turn_tool_messages
+from app.agent.record_tools import cited_sources
 from app.agent.safety import is_emergency_by_rules
 from app.db import Conn
 from app.deps import get_current_patient
@@ -43,7 +45,6 @@ log = logging.getLogger(__name__)
 PatientId = Annotated[UUID, Depends(get_current_patient)]
 
 NOT_FOUND = HTTPException(status_code=404, detail="conversation_not_found")
-FIXED_TEXT_NODES = ("escalate", "reply")  # nodes that send a fixed reply, not tokens
 
 # How the reply is shown: red for emergencies, amber when a nurse is being connected.
 KIND_FOR_SAFETY = {"emergency": "emergency", "clinical": "handoff", "wants_human": "handoff"}
@@ -77,9 +78,9 @@ def run_turn(
     kind = "text"
     category = "ok"
 
-    def save(content: str, kind: str) -> None:
+    def save(content: str, kind: str, sources: list[dict] | None = None) -> None:
         with pool.connection() as conn:
-            handoffs.save_message(conn, conversation_id, "assistant", content, kind)
+            handoffs.save_message(conn, conversation_id, "assistant", content, kind, sources=sources)
 
     try:
         for mode, data in graph.stream(
@@ -87,19 +88,19 @@ def run_turn(
         ):
             if mode == "messages":
                 chunk, meta = data
-                if meta.get("langgraph_node") == "answer" and isinstance(chunk.content, str) and chunk.content:
+                # Only the agent's text; its tool-call messages carry no text to show.
+                if (meta.get("langgraph_node") == "agent" and isinstance(chunk.content, str) and chunk.content
+                        and not getattr(chunk, "tool_call_chunks", None)):
                     yield sse({"type": "token", "text": chunk.content})
                 continue
             for node, update in data.items():
                 if node == "safety_check":
                     category = update["safety"]
-                elif node in FIXED_TEXT_NODES:
+                elif node == "escalate":
                     text = update["messages"][-1].content
                     kind = KIND_FOR_SAFETY.get(category, "text")
                     save(text, kind)
                     yield sse({"type": "token", "text": text})
-                elif node == "answer":
-                    save(update["messages"][-1].content, "text")
                 elif node == "create_handoff" and update.get("notice"):
                     save(update["notice"], "notice")
                     yield sse({"type": "notice", "text": update["notice"]})
@@ -107,7 +108,14 @@ def run_turn(
         state = graph.get_state(config)
         status = "handoff" if state.next else "bot"  # paused at wait_for_staff
         values = state.values
-        yield sse({"type": "done", "safety": values["safety"], "route": values.get("route"), "kind": kind, "status": status})
+        tool_messages = turn_tool_messages(values["messages"]) if category == "ok" else []
+        sources: list[dict] = []
+        if category == "ok":
+            answer = str(values["messages"][-1].content)
+            sources = cited_sources(answer, [m.artifact for m in tool_messages])
+            save(answer, "text", sources)
+        yield sse({"type": "done", "safety": values["safety"], "tools": [m.name for m in tool_messages],
+                   "kind": kind, "status": status, "sources": sources})
     except Exception:
         log.exception("Chat turn failed for conversation %s", conversation_id)
         yield sse({"type": "error", "message": "chat_failed"})
@@ -119,7 +127,7 @@ def handoff_turn(conversation_id: UUID, emergency: bool) -> Iterator[str]:
     if emergency:
         yield sse({"type": "token", "text": agent_config.EMERGENCY_REPLY})
     kind = "emergency" if emergency else None
-    yield sse({"type": "done", "safety": None, "route": None, "kind": kind, "status": "handoff"})
+    yield sse({"type": "done", "safety": None, "tools": [], "kind": kind, "status": "handoff", "sources": []})
 
 
 @router.post("/chat")

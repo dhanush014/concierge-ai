@@ -52,7 +52,7 @@ def my_documents(conn: psycopg.Connection, patient_id: UUID) -> list[Document]:
 def conversation_messages(conn: psycopg.Connection, conversation_id: UUID) -> list[Message]:
     """Oldest first; staff messages carry the staff member's display name."""
     rows = conn.execute(
-        "select m.id, m.sender, m.kind, m.content, m.created_at, p.display_name as staff_name"
+        "select m.id, m.sender, m.kind, m.content, m.created_at, m.sources, p.display_name as staff_name"
         " from public.messages m left join public.profiles p on p.id = m.staff_id"
         " where m.conversation_id = %s order by m.created_at, m.id",
         (conversation_id,),

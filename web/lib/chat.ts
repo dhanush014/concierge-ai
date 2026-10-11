@@ -3,6 +3,15 @@ import { ApiError, apiFetch, apiResponse } from "@/lib/api";
 export type MessageKind = "text" | "emergency" | "handoff" | "notice";
 export type ConversationStatus = "bot" | "handoff" | "closed";
 
+/** A source an answer cites, shown under the reply. */
+export type SourceRef = {
+  tag: string; // "S-3f2a", as cited in the text
+  kind: "record" | "policy" | "appointment" | "document";
+  title: string;
+  section: string | null;
+  date: string | null; // ISO date
+};
+
 export type ChatMessage = {
   id: string;
   sender: "patient" | "assistant" | "staff";
@@ -10,6 +19,7 @@ export type ChatMessage = {
   content: string;
   created_at: string;
   staff_name: string | null;
+  sources: SourceRef[] | null;
 };
 
 export type Conversation = {
@@ -20,7 +30,11 @@ export type Conversation = {
 };
 
 /** The last event of a successful reply. kind is null when nothing was said (during a handoff). */
-export type ChatDone = { kind: MessageKind | null; status: ConversationStatus };
+export type ChatDone = {
+  kind: MessageKind | null;
+  status: ConversationStatus;
+  sources: SourceRef[];
+};
 
 type StreamEvent =
   | { type: "conversation"; id: string }
@@ -82,7 +96,7 @@ export async function streamChat(conversationId: string | null, message: string,
         if (event.type === "conversation") handlers.onConversation(event.id);
         else if (event.type === "token") handlers.onToken(event.text);
         else if (event.type === "notice") handlers.onNotice(event.text);
-        else if (event.type === "done") return { kind: event.kind, status: event.status };
+        else if (event.type === "done") return { kind: event.kind, status: event.status, sources: event.sources ?? [] };
         else throw new ChatStreamError();
       }
     }

@@ -1,5 +1,5 @@
 {
-  "about": "Checkable facts from data/policies/ (fictional). The right chunk for each question is doc + section (retrieval eval); the answer must contain every 'expect' string (answer eval).",
+  "about": "Checkable facts from data/policies/ (fictional). The right chunk for each question is doc + section (retrieval eval); the answer must contain every 'expect' item (answer eval; an item that is a list is a set of alternatives).",
   "facts": [
     {
       "question": "Do I need to fast before blood work?",
@@ -63,7 +63,10 @@
     {
       "question": "How many visitors can be in the ICU at once?",
       "expect": [
-        "2"
+        [
+          "2",
+          "two"
+        ]
       ],
       "doc": "visiting-hours.md",
       "section": "Intensive care unit (ICU)"

@@ -17,6 +17,7 @@ from psycopg.rows import dict_row
 # Tests never send traces. Set before app code loads .env (which won't override it).
 os.environ["LANGSMITH_TRACING"] = "false"
 os.environ["LLM_FAKE"] = "0"  # pytest patches in its own scripted fake (fake_llm fixture)
+os.environ["RAG_WARMUP"] = "0"  # tests use fake embedder/reranker; don't load the real models
 
 from app import storage  # noqa: E402
 from app.agent import llm  # noqa: E402

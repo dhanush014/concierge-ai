@@ -9,6 +9,7 @@ from app.agent.checkpointer import open_checkpointer
 from app.agent.graph import build_graph
 from app.agent.llm import check_mode_at_startup
 from app.db import db_error_handler, open_pool
+from app.rag.warmup import warm_models_in_background
 from app.routes import appointments, chat, documents, handoffs
 
 
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.pool = open_pool()
     checkpoint_pool, checkpointer = open_checkpointer()
     app.state.chat_graph = build_graph(app.state.pool, checkpointer)
+    warm_models_in_background()  # first search shouldn't wait for model loading
     try:
         yield
     finally:

@@ -48,6 +48,10 @@ uv run --project api evals/run_retrieval.py          # hit@5 / rank, with and wi
 ```bash
 uv run --project api evals/compare_vector_search.py  # exact vs HNSW index
 ```
+
+```bash
+uv run --project api evals/run_answers.py   # real Groq LLM: correct + cited, tools used
+```
 The first run downloads the model (~130 MB) if it isn't cached. Checkable policy facts for
 later tests: `evals/policy_facts.json`.
 

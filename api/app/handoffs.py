@@ -6,6 +6,7 @@ from typing import Literal
 from uuid import UUID
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 Sender = Literal["patient", "assistant", "staff"]
 Kind = Literal["text", "emergency", "handoff", "notice"]
@@ -21,13 +22,14 @@ def save_message(
     content: str,
     kind: Kind = "text",
     staff_id: UUID | None = None,
+    sources: list[dict] | None = None,
 ) -> UUID:
     # clock_timestamp(), not the default now(): several messages saved in one
     # transaction must still sort in the order they were written.
     return conn.execute(
-        "insert into public.messages (conversation_id, sender, content, kind, staff_id, created_at)"
-        " values (%s, %s, %s, %s, %s, clock_timestamp()) returning id",
-        (conversation_id, sender, content, kind, staff_id),
+        "insert into public.messages (conversation_id, sender, content, kind, staff_id, sources, created_at)"
+        " values (%s, %s, %s, %s, %s, %s, clock_timestamp()) returning id",
+        (conversation_id, sender, content, kind, staff_id, Jsonb(sources) if sources else None),
     ).fetchone()["id"]
 
 

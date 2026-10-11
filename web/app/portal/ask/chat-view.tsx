@@ -6,7 +6,7 @@ import { StatusMessage, type Status } from "@/components/status-message";
 import { isRetryable, isStatus } from "@/lib/api";
 import { getConversation, getLatestConversation, messageFor, streamChat, type Conversation } from "@/lib/chat";
 import { Composer } from "./composer";
-import { MessageList, type ShownMessage } from "./message-list";
+import { MessageList, withCitations, type ShownMessage } from "./message-list";
 import { arrivals, empty, fromConversation, staffInChat, type Session } from "./session";
 import { useLiveConversation } from "./use-live-conversation";
 
@@ -147,10 +147,10 @@ export function ChatView() {
           }));
         },
       });
-      if (reply) patchReply(() => ({ kind: done.kind ?? "text", pending: false }));
+      if (reply) patchReply(() => ({ kind: done.kind ?? "text", pending: false, sources: done.sources }));
       else dropReply();
       setSession((s) => ({ ...s, status: done.status }));
-      const spoken = [reply, ...notices].filter(Boolean).join(" ") || "Sent. The nurse will see your message.";
+      const spoken = [withCitations(reply, done.sources), ...notices].filter(Boolean).join(" ") || "Sent. The nurse will see your message.";
       setAnnounced(done.kind === "emergency" ? { polite: "", urgent: spoken } : { polite: reply ? `Assistant: ${spoken}` : spoken, urgent: "" });
       if (conversationId) adopt(conversationId);
     } catch (error) {

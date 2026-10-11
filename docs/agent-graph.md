@@ -15,21 +15,17 @@ graph TD;
 	escalate(escalate)
 	create_handoff(create_handoff)
 	wait_for_staff(wait_for_staff)
-	router(router)
+	agent(agent)
 	tools(tools)
-	reply(reply)
-	answer(answer)
 	__end__([<p>__end__</p>]):::last
 	__start__ --> safety_check;
+	agent -. &nbsp;answers&nbsp; .-> __end__;
+	agent -. &nbsp;calls tools&nbsp; .-> tools;
 	create_handoff --> wait_for_staff;
 	escalate --> create_handoff;
-	router -. &nbsp;change_appointment / other&nbsp; .-> reply;
-	router -. &nbsp;appointments / documents&nbsp; .-> tools;
+	safety_check -. &nbsp;ok&nbsp; .-> agent;
 	safety_check -. &nbsp;emergency / clinical / wants_human&nbsp; .-> escalate;
-	safety_check -. &nbsp;ok&nbsp; .-> router;
-	tools --> answer;
-	answer --> __end__;
-	reply --> __end__;
+	tools --> agent;
 	wait_for_staff --> __end__;
 	classDef default fill:#f2f0ff,line-height:1.2
 	classDef first fill-opacity:0

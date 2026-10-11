@@ -3,10 +3,11 @@
 Turned on by LLM_FAKE=1, and only allowed together with APP_ENV=local (see
 llm.llm_mode). Never used by pytest, which has its own scripted fake.
 
-  safety  always "ok", so only the real regex rules can escalate
-  router  keyword rules
-  answer  repeats the tool's records back, streamed word by word
-  summary quotes the patient's last message
+  safety   always "ok", so only the real regex rules can escalate
+  agent    keyword rules pick one tool call; after the result comes back it answers
+           "Here is what I found." plus the tool's lines (with their source tags, so
+           the answer cites them). Booking/changing gets the Appointments tab, no tool.
+  summary  quotes the patient's last message
 """
 
 import json
@@ -15,24 +16,43 @@ from collections.abc import Iterator
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 
-ROUTER_KEYWORDS = [  # first match wins
-    ("change_appointment", r"\b(book|reschedul\w*|cancel\w*|move)\b"),
-    ("documents", r"\b(documents?|upload\w*|insurance card|referral)\b"),
-    ("appointments", r"\b(appointments?|visits?)\b"),
+LAB_WORDS = r"a1c|cholesterol|ldl|hdl|glucose|blood pressure|weight|bmi|hemoglobin|creatinine|lab"
+RECORD_KINDS = [  # (pattern, list_my_records kind)
+    (r"medication|meds|prescri|birth control", "medications"),
+    (r"allerg", "allergies"),
+    (r"condition|diagnos", "conditions"),
+    (r"vaccin|immuniz|flu shot", "immunizations"),
 ]
-RECORDS_MARKER = "Records:\n"
+POLICY_WORDS = r"park|fast|visiting|visitor|bill|pay|records request|telehealth|mri|ct scan|no-show"
+BOOKING = r"\b(book|reschedul\w*|cancel\w*|move)\b"
+APPOINTMENTS_TAB = ("I can't book, reschedule or cancel visits in chat. Use the Appointments tab: "
+                    "it shows open times and makes the change right away.")
 
 
 def _last_human(messages: list[BaseMessage]) -> str:
     return next((str(m.content) for m in reversed(messages) if isinstance(m, HumanMessage)), "")
 
 
-def fake_route(text: str) -> str:
+def fake_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
+    """The one tool the fake agent calls for a question, or None (answer directly)."""
     lower = text.lower()
-    return next((route for route, pattern in ROUTER_KEYWORDS if re.search(pattern, lower)), "other")
+    if re.search(BOOKING, lower):
+        return None
+    if re.search(r"\bappointments?\b|\bvisits?\b", lower):
+        return "get_my_appointments", {}
+    if re.search(r"documents?|upload", lower):
+        return "get_my_documents", {}
+    if m := re.search(LAB_WORDS, lower):
+        return "get_lab_results", {"test_name": m.group(0)}
+    for pattern, kind in RECORD_KINDS:
+        if re.search(pattern, lower):
+            return "list_my_records", {"kind": kind}
+    if re.search(POLICY_WORDS, lower):
+        return "search_hospital_policies", {"query": text}
+    return "search_my_records", {"query": text}
 
 
 class FakeChatModel(BaseChatModel):
@@ -42,29 +62,36 @@ class FakeChatModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "concierge-fake"
 
-    def _reply(self, messages: list[BaseMessage]) -> str:
+    def bind_tools(self, tools: Any, **kwargs: Any) -> "FakeChatModel":
+        return self  # the fake already knows the tool names
+
+    def _reply(self, messages: list[BaseMessage]) -> AIMessage:
         if self.role == "safety":
-            return json.dumps({"category": "ok", "reason": "fake LLM mode"})
-        if self.role == "router":
-            return json.dumps({"route": fake_route(_last_human(messages))})
+            return AIMessage(json.dumps({"category": "ok", "reason": "fake LLM mode"}))
         if self.role == "summary":
-            return f'Patient asked: "{_last_human(messages)}"'
-        system = str(messages[0].content)
-        records = system.split(RECORDS_MARKER, 1)[-1].strip()
-        return f"Here is what I found.\n{records}"
+            return AIMessage(f'Patient asked: "{_last_human(messages)}"')
+        if isinstance(messages[-1], ToolMessage):  # tool result is in: answer from it
+            results = [str(m.content).split("\n", 1)[-1] for m in messages if isinstance(m, ToolMessage)]
+            return AIMessage("Here is what I found.\n" + "\n".join(results))
+        call = fake_tool_call(_last_human(messages))
+        if call is None:
+            return AIMessage(APPOINTMENTS_TAB)
+        name, args = call
+        return AIMessage("", tool_calls=[{"name": name, "args": args, "id": "fake_call_1", "type": "tool_call"}])
 
-    def _generate(
-        self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any
-    ) -> ChatResult:
-        return ChatResult(generations=[ChatGeneration(message=AIMessage(self._reply(messages)))])
+    def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
+        return ChatResult(generations=[ChatGeneration(message=self._reply(messages))])
 
-    def _stream(
-        self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any
-    ) -> Iterator[ChatGenerationChunk]:
-        for piece in re.split(r"(\s+)", self._reply(messages)):
-            if not piece:
-                continue
-            chunk = ChatGenerationChunk(message=AIMessageChunk(content=piece))
-            if run_manager:
-                run_manager.on_llm_new_token(piece, chunk=chunk)
-            yield chunk
+    def _stream(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any) -> Iterator[ChatGenerationChunk]:
+        reply = self._reply(messages)
+        if reply.tool_calls:  # one chunk carrying the whole call
+            yield ChatGenerationChunk(message=AIMessageChunk(content="", tool_call_chunks=[
+                {"name": c["name"], "args": json.dumps(c["args"]), "id": c["id"], "index": 0} for c in reply.tool_calls
+            ]))
+            return
+        for piece in re.split(r"(\s+)", str(reply.content)):
+            if piece:
+                chunk = ChatGenerationChunk(message=AIMessageChunk(content=piece))
+                if run_manager:
+                    run_manager.on_llm_new_token(piece, chunk=chunk)
+                yield chunk

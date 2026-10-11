@@ -10,7 +10,9 @@ from fastapi.testclient import TestClient
 from app import handoffs
 from app.agent import config
 from tests.conftest import Factory, as_patient, bearer
-from tests.fake_llm import FakeLLM
+from langchain_core.messages import AIMessage
+
+from tests.fake_llm import FakeLLM, call
 
 
 def events(resp) -> list[dict]:
@@ -99,7 +101,7 @@ def test_patient_messages_during_handoff_get_no_reply(client: TestClient, db, ti
     assert [e["type"] for e in evs] == ["conversation", "done"]
     assert evs[-1]["status"] == "handoff"
     assert messages(db, ticket["conversation_id"])[-1] == ("patient", "text", "are you there?")
-    assert fake_llm.calls("router") == 0 and len(handoff_rows(db, ticket["conversation_id"])) == 1
+    assert fake_llm.calls("agent") == 0 and len(handoff_rows(db, ticket["conversation_id"])) == 1
 
 
 def test_emergency_during_handoff_still_gets_911_and_flags_ticket(client: TestClient, db, ticket: dict) -> None:
@@ -199,11 +201,11 @@ def test_close_resumes_the_assistant(client: TestClient, db, ticket: dict, fake_
     assert not paused(client, cid)
 
     # The graph remembers the handoff, and the assistant answers again.
-    fake_llm.replies["router"] = '{"route": "appointments"}'
+    fake_llm.agent_script = [call("get_my_appointments"), AIMessage("Here you go.")]
     evs = say(client, ticket["aja"], "when is my next visit", cid)
-    assert evs[-1]["status"] == "bot" and evs[-1]["route"] == "appointments"
-    router_saw = " ".join(str(m.content) for m in fake_llm.prompts["router"][-1])
-    assert "my appointment question" in router_saw and "Test staff: Your visit is on Monday." in router_saw
+    assert evs[-1]["status"] == "bot" and evs[-1]["tools"] == ["get_my_appointments"]
+    agent_saw = " ".join(str(m.content) for m in fake_llm.prompts["agent"][-1])
+    assert "my appointment question" in agent_saw and "Test staff: Your visit is on Monday." in agent_saw
 
     assert staff_post(client, ticket, "close").json()["detail"] == "handoff_closed"
     assert staff_post(client, ticket, "join").json()["detail"] == "handoff_closed"

@@ -1,48 +1,45 @@
 """The chat agent:
 
-    safety_check --ok--> router --appointments/documents--> tools -> answer
-         |                  \\--change_appointment/other--> reply
+    safety_check --ok--> agent <-> tools      (at most MAX_TOOL_CALLS tool calls a turn)
          \\--emergency/clinical/wants_human--> escalate -> create_handoff -> wait_for_staff
 
-escalate and reply send fixed text (no LLM). Only `answer` streams model tokens.
-escalate runs first so the 911 message never waits for the summary model.
-wait_for_staff pauses the graph (interrupt) until staff close the handoff; the close
-endpoint resumes it with the handoff transcript.
+`agent` is the LLM with read-only tools (toolkit.py): it calls tools until it has what
+it needs, then answers, citing source tags. After MAX_TOOL_CALLS calls it is called
+without tools, so it must answer. The patient id reaches tools from state (set from the
+login), never from the LLM.
+escalate sends fixed text (no LLM) first, so the 911 message never waits for the summary
+model. wait_for_staff pauses the graph (interrupt) until staff close the handoff; the
+close endpoint resumes it with the handoff transcript.
 Conversation memory lives in the Postgres checkpointer, one thread per conversation.
 """
 
-import json
 import logging
-import re
-from typing import Annotated, Literal, TypedDict
+from typing import Annotated, TypedDict
 from uuid import UUID
 
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import BaseTool
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt
 from psycopg_pool import ConnectionPool
 
 from app import handoffs
 from app.agent import config, llm, safety
-from app.agent.config import NURSE_NOTIFIED_NOTICE
-from app.agent.prompts import ANSWER_PROMPT, ROUTER_PROMPT, SUMMARY_PROMPT
-from app.agent.tools import TOOLS
+from app.agent.config import MAX_TOOL_CALLS, NURSE_NOTIFIED_NOTICE
+from app.agent.prompts import AGENT_PROMPT, SUMMARY_PROMPT
+from app.agent.toolkit import make_tools
 
 log = logging.getLogger(__name__)
-
-Route = Literal["appointments", "documents", "change_appointment", "other"]
-ROUTES: tuple[Route, ...] = ("appointments", "documents", "change_appointment", "other")
 
 FIXED_REPLIES: dict[str, str] = {
     "emergency": config.EMERGENCY_REPLY,
     "clinical": config.NURSE_REPLY,
     "wants_human": config.NURSE_REPLY,
-    "change_appointment": config.CHANGE_APPOINTMENT_REPLY,
-    "other": config.OTHER_REPLY,
 }
 
 
@@ -51,25 +48,35 @@ class ChatState(TypedDict, total=False):
     messages: Annotated[list[AnyMessage], add_messages]
     safety: safety.Category
     safety_source: safety.Source
-    route: Route | None
-    records: str | None
     trace_id: str | None  # LangSmith run id of this turn, stored on a handoff
     notice: str | None  # a notice line for the patient (set by create_handoff)
     handoff_summary: str | None  # the AI summary staff see (set by create_handoff)
 
 
-def _latest_text(state: ChatState) -> str:
-    return str(state["messages"][-1].content)
+def split_turn(messages: list[AnyMessage]) -> tuple[list[AnyMessage], list[AnyMessage]]:
+    """(earlier questions and answers, this turn). This turn starts at the latest patient
+    message and includes its tool calls and results. Earlier turns keep only the plain
+    questions and answers: their tool traffic is done, and a tool result without the
+    call that asked for it is rejected by the API."""
+    start = max(i for i, m in enumerate(messages) if isinstance(m, HumanMessage))
+    earlier = [m for m in messages[:start]
+               if isinstance(m, HumanMessage) or (isinstance(m, AIMessage) and not m.tool_calls)]
+    return earlier[-config.HISTORY_TURNS :], messages[start:]
 
 
-def _recent(state: ChatState) -> list[AnyMessage]:
-    return state["messages"][-config.HISTORY_TURNS :]
+def tool_calls_used(turn: list[AnyMessage]) -> int:
+    return sum(len(m.tool_calls) for m in turn if isinstance(m, AIMessage))
+
+
+def turn_tool_messages(messages: list[AnyMessage]) -> list[ToolMessage]:
+    """This turn's tool results (their artifacts are the sources)."""
+    return [m for m in split_turn(messages)[1] if isinstance(m, ToolMessage)]
 
 
 def safety_check(state: ChatState) -> ChatState:
-    result = safety.check(_latest_text(state))
-    # route/records reset so a previous turn's values never leak into this one
-    return {"safety": result.category, "safety_source": result.source, "route": None, "records": None, "notice": None, "handoff_summary": None}
+    result = safety.check(str(state["messages"][-1].content))
+    # reset per-turn values so a previous turn's never leak into this one
+    return {"safety": result.category, "safety_source": result.source, "notice": None, "handoff_summary": None}
 
 
 def escalate(state: ChatState) -> ChatState:
@@ -79,7 +86,8 @@ def escalate(state: ChatState) -> ChatState:
 def summarize(state: ChatState) -> str:
     """One line for the nurse. Never blocks the handoff: falls back to a quote."""
     try:
-        reply = llm.chat_model("summary").invoke([SystemMessage(SUMMARY_PROMPT), *_recent(state)])
+        earlier, turn = split_turn(state["messages"])
+        reply = llm.chat_model("summary").invoke([SystemMessage(SUMMARY_PROMPT), *earlier, turn[0]])
         text = str(reply.content).strip()
         if text:
             return text[:500]
@@ -121,71 +129,53 @@ def wait_for_staff(state: ChatState) -> ChatState:
     return {"messages": [*said, AIMessage(config.ASSISTANT_BACK_NOTICE)]}
 
 
-def router(state: ChatState) -> ChatState:
-    """LLM picks a route from a fixed list; any failure or junk falls back to 'other'."""
-    try:
-        model = llm.chat_model("router").bind(response_format={"type": "json_object"})
-        reply = model.invoke([SystemMessage(ROUTER_PROMPT), *_recent(state)])
-        match = re.search(r"\{.*\}", str(reply.content), re.DOTALL)
-        route = json.loads(match.group(0) if match else str(reply.content)).get("route")
-    except Exception as exc:  # noqa: BLE001 - a router outage downgrades, never crashes
-        log.warning("Router LLM failed (%s); using 'other'", type(exc).__name__)
-        route = None
-    return {"route": route if route in ROUTES else "other"}
+def make_agent_node(tools: list[BaseTool]):
+    def agent(state: ChatState) -> ChatState:
+        """One LLM step: call tools, or answer. Out of tool budget -> no tools offered."""
+        earlier, turn = split_turn(state["messages"])
+        remaining = MAX_TOOL_CALLS - tool_calls_used(turn)
+        model = llm.chat_model("agent")
+        if remaining > 0:
+            model = model.bind_tools(tools)
+        reply = model.invoke([SystemMessage(AGENT_PROMPT), *earlier, *turn])
+        if isinstance(reply, AIMessage) and len(reply.tool_calls) > remaining:
+            reply.tool_calls = reply.tool_calls[: max(remaining, 0)]  # never exceed the budget
+        return {"messages": [reply]}
 
-
-def reply(state: ChatState) -> ChatState:
-    return {"messages": [AIMessage(FIXED_REPLIES[state["route"]])]}
-
-
-def make_tools_node(pool: ConnectionPool):
-    def tools(state: ChatState) -> ChatState:
-        tool = TOOLS[state["route"]]
-        with pool.connection() as conn:
-            return {"records": tool(conn, UUID(state["patient_id"]))}
-
-    return tools
-
-
-def answer(state: ChatState) -> ChatState:
-    model = llm.chat_model("answer")
-    prompt = SystemMessage(ANSWER_PROMPT.format(records=state["records"]))
-    return {"messages": [model.invoke([prompt, *_recent(state)])]}
+    return agent
 
 
 # Branch names double as the edge labels in the Mermaid diagram (docs/agent-graph.md).
 SAFE, NEEDS_PERSON = "ok", "emergency / clinical / wants_human"
-LOOKUP, FIXED = "appointments / documents", "change_appointment / other"
+CALLS_TOOLS, ANSWERS = "calls tools", "answers"
 
 
 def after_safety(state: ChatState) -> str:
     return SAFE if state["safety"] == "ok" else NEEDS_PERSON
 
 
-def after_router(state: ChatState) -> str:
-    return LOOKUP if state["route"] in TOOLS else FIXED
+def after_agent(state: ChatState) -> str:
+    last = state["messages"][-1]
+    return CALLS_TOOLS if isinstance(last, AIMessage) and last.tool_calls else ANSWERS
 
 
 def add_agent(g: StateGraph, pool: ConnectionPool, *, record_handoffs: bool = True) -> StateGraph:
     """Every node and edge of the agent, starting at safety_check. Callers add the edge
     into safety_check: START in production, a setup step in LangGraph Studio."""
+    tools = make_tools(pool)
     g.add_node("safety_check", safety_check)
     g.add_node("escalate", escalate)
     g.add_node("create_handoff", make_create_handoff_node(pool, record=record_handoffs))
     g.add_node("wait_for_staff", wait_for_staff)
-    g.add_node("router", router)
-    g.add_node("tools", make_tools_node(pool))
-    g.add_node("reply", reply)
-    g.add_node("answer", answer)
+    g.add_node("agent", make_agent_node(tools))
+    g.add_node("tools", ToolNode(tools))
 
-    g.add_conditional_edges("safety_check", after_safety, {SAFE: "router", NEEDS_PERSON: "escalate"})
-    g.add_conditional_edges("router", after_router, {LOOKUP: "tools", FIXED: "reply"})
-    g.add_edge("tools", "answer")
+    g.add_conditional_edges("safety_check", after_safety, {SAFE: "agent", NEEDS_PERSON: "escalate"})
+    g.add_conditional_edges("agent", after_agent, {CALLS_TOOLS: "tools", ANSWERS: END})
+    g.add_edge("tools", "agent")
     g.add_edge("escalate", "create_handoff")
     g.add_edge("create_handoff", "wait_for_staff")
     g.add_edge("wait_for_staff", END)
-    g.add_edge("reply", END)
-    g.add_edge("answer", END)
     return g
 
 

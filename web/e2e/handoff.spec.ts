@@ -57,7 +57,7 @@ test("Aja asks for a person, Nurse Kim joins, replies and closes; the assistant 
   const reply = kim.getByLabel("Reply to the patient");
   await reply.fill("Hi Aja, how can I help?");
   await reply.press("Enter");
-  const fromKim = conversation(aja).getByRole("listitem").filter({ hasText: "Hi Aja, how can I help?" });
+  const fromKim = conversation(aja).locator(":scope > li").filter({ hasText: "Hi Aja, how can I help?" });
   await expect(fromKim).toContainText("Nurse Kim");
 
   // 5. Aja answers: the assistant stays silent, Kim sees it live.
@@ -74,7 +74,7 @@ test("Aja asks for a person, Nurse Kim joins, replies and closes; the assistant 
 
   // 7. The assistant answers again.
   await ajaSays(aja, "When is my next appointment?");
-  await expect(conversation(aja).getByRole("listitem").last()).toContainText("Here is what I found.");
+  await expect(conversation(aja).locator(":scope > li").last()).toContainText("Here is what I found.");
 
   // And the ticket moved to Closed in the inbox.
   await kim.getByRole("link", { name: "Back to inbox" }).click();

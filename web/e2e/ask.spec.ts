@@ -22,7 +22,8 @@ test.afterAll(async () => {
 });
 
 const input = (page: Page) => page.getByLabel("Your question");
-const conversation = (page: Page) => page.getByRole("list", { name: "Conversation" }).getByRole("listitem");
+// Direct items only: a reply's "Sources" list is nested inside its item.
+const conversation = (page: Page) => page.getByRole("list", { name: "Conversation" }).locator(":scope > li");
 const announcer = (page: Page) => page.locator('.sr-only[role="status"]');
 const sendButton = (page: Page) => page.getByRole("button", { name: "Send", exact: true });
 
@@ -50,6 +51,11 @@ test("1. Suggestion asks about appointments; the answer streams in with real dat
   const reply = conversation(page).nth(1);
   await expect(reply).toContainText(world.doctorName);
   await expect(reply).toContainText("Here is what I found.");
+  // Cited sources under the reply, numbered; the raw [S-xxxx] tags are not shown.
+  await expect(reply.getByText("Sources", { exact: true })).toBeVisible();
+  await expect(reply.getByRole("listitem").filter({ hasText: world.doctorName }).first()).toBeVisible();
+  await expect(reply).toContainText("[1]");
+  await expect(reply).not.toContainText("[S-");
   await expect(announcer(page)).toContainText(world.doctorName); // full reply, read once
   await expect(page.getByRole("button", { name: "When is my next appointment?" })).toHaveCount(0);
 });

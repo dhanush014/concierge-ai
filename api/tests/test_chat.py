@@ -8,7 +8,9 @@ from fastapi.testclient import TestClient
 
 from app.agent import config
 from tests.conftest import Factory, as_patient, bearer
-from tests.fake_llm import FakeLLM
+from langchain_core.messages import AIMessage
+
+from tests.fake_llm import FakeLLM, call
 
 
 def events(resp) -> list[dict]:
@@ -38,28 +40,28 @@ def saved(db: psycopg.Connection, conversation_id) -> list[tuple[str, str]]:
 
 def test_streams_tokens_and_saves_both_messages(client: TestClient, db, make: Factory, fake_llm: FakeLLM) -> None:
     patient = make.patient()
-    fake_llm.replies["router"] = '{"route": "appointments"}'
-    fake_llm.replies["answer"] = "You have no upcoming appointments right now."
+    fake_llm.agent_script = [call("get_my_appointments"), AIMessage("You have no upcoming appointments right now.")]
+    fake_llm.replies["agent"] = "You have no upcoming appointments right now."
 
     evs = events(send(client, patient, "  when is my next visit?  "))
 
-    assert evs[0]["type"] == "conversation" and evs[-1] == {"type": "done", "safety": "ok", "route": "appointments", "kind": "text", "status": "bot"}
+    assert evs[0]["type"] == "conversation" and evs[-1] == {"type": "done", "safety": "ok", "tools": ["get_my_appointments"], "kind": "text", "status": "bot", "sources": []}
     assert sum(e["type"] == "token" for e in evs) > 1  # really streamed, not one blob
-    assert reply_text(evs) == fake_llm.replies["answer"]
+    assert reply_text(evs) == fake_llm.replies["agent"]
     conversation_id = evs[0]["id"]
     assert saved(db, conversation_id) == [
         ("patient", "when is my next visit?"),  # stripped
-        ("assistant", fake_llm.replies["answer"]),
+        ("assistant", fake_llm.replies["agent"]),
     ]
     state = client.app.state.chat_graph.get_state({"configurable": {"thread_id": conversation_id}})
-    assert len(state.values["messages"]) == 2  # the checkpointer has the turn too
+    assert [m.type for m in state.values["messages"]] == ["human", "ai", "tool", "ai"]  # question, tool call, result, answer
 
 
 def test_escalation_streams_the_fixed_reply(client: TestClient, db, make: Factory) -> None:
     evs = events(send(client, make.patient(), "I want to kill myself"))
     assert reply_text(evs) == config.EMERGENCY_REPLY
     assert {"type": "notice", "text": config.NURSE_NOTIFIED_NOTICE} in evs
-    assert evs[-1] == {"type": "done", "safety": "emergency", "route": None, "kind": "emergency", "status": "handoff"}
+    assert evs[-1] == {"type": "done", "safety": "emergency", "tools": [], "kind": "emergency", "status": "handoff", "sources": []}
     # The 911 message is saved before the "nurse notified" notice.
     assert saved(db, evs[0]["id"])[1:] == [
         ("assistant", config.EMERGENCY_REPLY),
@@ -80,7 +82,7 @@ def test_continuing_a_conversation(client: TestClient, make: Factory) -> None:
     assert body["status"] == "handoff"  # asking for a person hands the chat to staff
     assert [(m["sender"], m["content"]) for m in body["messages"]] == [
         ("patient", "hello"),
-        ("assistant", config.OTHER_REPLY),
+        ("assistant", "Fake answer."),
         ("patient", "can I talk to a real person"),
         ("assistant", config.NURSE_REPLY),
     ]
@@ -117,8 +119,7 @@ def test_message_must_have_text_and_fit(client: TestClient, make: Factory) -> No
 
 
 def test_failed_turn_keeps_patient_message(client: TestClient, db, make: Factory, fake_llm: FakeLLM) -> None:
-    fake_llm.replies["router"] = '{"route": "documents"}'
-    fake_llm.errors["answer"] = RuntimeError("groq down")
+    fake_llm.errors["agent"] = RuntimeError("groq down")
     evs = events(send(client, make.patient(), "what documents do I have"))
     assert evs[-1] == {"type": "error", "message": "chat_failed"}
     assert saved(db, evs[0]["id"]) == [("patient", "what documents do I have")]

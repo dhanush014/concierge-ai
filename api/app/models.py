@@ -65,6 +65,16 @@ class ChatRequest(BaseModel):
     message: ChatText
 
 
+class SourceRef(BaseModel):
+    """A source an answer cites: shown under the reply."""
+
+    tag: str  # "S-3f2a", as cited in the text
+    kind: Literal["record", "policy", "appointment", "document"]
+    title: str  # "Lab result", "Parking"
+    section: str | None  # "Hemoglobin A1c", "Validation"
+    date: str | None  # ISO date
+
+
 class Message(BaseModel):
     id: UUID
     sender: Literal["patient", "assistant", "staff"]
@@ -72,6 +82,7 @@ class Message(BaseModel):
     content: str
     created_at: datetime
     staff_name: str | None = None
+    sources: list[SourceRef] | None = None
 
 
 class Conversation(BaseModel):
