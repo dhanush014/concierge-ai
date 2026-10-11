@@ -18,10 +18,11 @@ class FakeLLM:
             "safety": '{"category": "ok", "reason": "fake"}',
             "router": '{"route": "other"}',
             "answer": "Fake answer from the records.",
+            "summary": "Patient asked to talk to someone.",
         }
         self.errors: dict[str, Exception] = {}
         self.delays: dict[str, float] = {}
-        self.prompts: dict[str, list[list[BaseMessage]]] = {"safety": [], "router": [], "answer": []}
+        self.prompts: dict[str, list[list[BaseMessage]]] = {"safety": [], "router": [], "answer": [], "summary": []}
 
     def __call__(self, role: str) -> GenericFakeChatModel:
         return _ScriptedModel(owner=self, role=role, messages=iter([AIMessage(self.replies[role])]))

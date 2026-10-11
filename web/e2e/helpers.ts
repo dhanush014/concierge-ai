@@ -24,6 +24,7 @@ const API_URL = "http://localhost:8000";
 
 export const AJA = "aja.casper@demo.concierge.test";
 export const BART = "bart.brekke@demo.concierge.test";
+export const KIM = "nurse.kim@demo.concierge.test";
 const E2E_PREFIX = "Dr. E2E";
 
 async function rest<T>(method: string, query: string, body?: unknown): Promise<T> {
@@ -157,7 +158,7 @@ export async function loginAs(page: Page, email: string): Promise<void> {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(env("DEMO_PASSWORD"));
   await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/portal\/appointments$/);
+  await expect(page).toHaveURL(/\/(portal\/appointments|staff)$/); // patients / staff land here
 }
 
 export function card(page: Page, section: "upcoming" | "past", doctorName: string) {

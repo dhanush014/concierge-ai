@@ -23,11 +23,20 @@ def graph(client: TestClient):
 
 
 @pytest.fixture
-def thread(graph) -> Iterator[dict]:
-    """A throwaway checkpointer thread, deleted afterwards."""
-    thread_id = str(uuid.uuid4())
-    yield {"configurable": {"thread_id": thread_id}}
-    graph.checkpointer.delete_thread(thread_id)
+def thread(db: psycopg.Connection) -> Iterator[dict]:
+    """A real conversation to run the graph on (handoffs reference it). Owned by a
+    throwaway patient row; deleting it clears the graph state too (trigger)."""
+    patient = db.execute(
+        "insert into public.patients (synthea_id, first_name, last_name, birth_date)"
+        " values (%s, 'Graph', 'Test', '1990-01-01') returning id",
+        (f"graph-test-{uuid.uuid4().hex[:8]}",),
+    ).fetchone()["id"]
+    convo = db.execute(
+        "insert into public.conversations (patient_id) values (%s) returning id", (patient,)
+    ).fetchone()["id"]
+    yield {"configurable": {"thread_id": str(convo)}}
+    db.execute("delete from public.conversations where id = %s", (convo,))
+    db.execute("delete from public.patients where id = %s", (patient,))
 
 
 def route_to(route: str) -> str:

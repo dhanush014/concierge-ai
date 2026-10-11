@@ -2,11 +2,13 @@
 
     safety_check --ok--> router --appointments/documents--> tools -> answer
          |                  \\--change_appointment/other--> reply
-         \\--emergency/clinical/wants_human--> escalate
+         \\--emergency/clinical/wants_human--> escalate -> create_handoff -> wait_for_staff
 
 escalate and reply send fixed text (no LLM). Only `answer` streams model tokens.
+escalate runs first so the 911 message never waits for the summary model.
+wait_for_staff pauses the graph (interrupt) until staff close the handoff; the close
+endpoint resumes it with the handoff transcript.
 Conversation memory lives in the Postgres checkpointer, one thread per conversation.
-In 3.3 escalate becomes the handoff (LangGraph interrupt).
 """
 
 import json
@@ -16,14 +18,18 @@ from typing import Annotated, Literal, TypedDict
 from uuid import UUID
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import interrupt
 from psycopg_pool import ConnectionPool
 
+from app import handoffs
 from app.agent import config, llm, safety
-from app.agent.prompts import ANSWER_PROMPT, ROUTER_PROMPT
+from app.agent.config import NURSE_NOTIFIED_NOTICE
+from app.agent.prompts import ANSWER_PROMPT, ROUTER_PROMPT, SUMMARY_PROMPT
 from app.agent.tools import TOOLS
 
 log = logging.getLogger(__name__)
@@ -47,6 +53,8 @@ class ChatState(TypedDict, total=False):
     safety_source: safety.Source
     route: Route | None
     records: str | None
+    trace_id: str | None  # LangSmith run id of this turn, stored on a handoff
+    notice: str | None  # a notice line for the patient (set by create_handoff)
 
 
 def _latest_text(state: ChatState) -> str:
@@ -60,11 +68,52 @@ def _recent(state: ChatState) -> list[AnyMessage]:
 def safety_check(state: ChatState) -> ChatState:
     result = safety.check(_latest_text(state))
     # route/records reset so a previous turn's values never leak into this one
-    return {"safety": result.category, "safety_source": result.source, "route": None, "records": None}
+    return {"safety": result.category, "safety_source": result.source, "route": None, "records": None, "notice": None}
 
 
 def escalate(state: ChatState) -> ChatState:
     return {"messages": [AIMessage(FIXED_REPLIES[state["safety"]])]}
+
+
+def summarize(state: ChatState) -> str:
+    """One line for the nurse. Never blocks the handoff: falls back to a quote."""
+    try:
+        reply = llm.chat_model("summary").invoke([SystemMessage(SUMMARY_PROMPT), *_recent(state)])
+        text = str(reply.content).strip()
+        if text:
+            return text[:500]
+    except Exception as exc:  # noqa: BLE001
+        log.warning("Summary LLM failed (%s); quoting the patient", type(exc).__name__)
+    last = next(str(m.content) for m in reversed(state["messages"]) if isinstance(m, HumanMessage))
+    return f'Patient wrote: "{last[:300]}"'
+
+
+def make_create_handoff_node(pool: ConnectionPool):
+    # The parameter must be named `config` for LangGraph to pass the run config in.
+    def create_handoff(state: ChatState, config: RunnableConfig) -> ChatState:  # noqa: F811
+        """All side effects of a handoff live here, NOT in wait_for_staff: LangGraph
+        re-runs an interrupted node from the top when it resumes."""
+        conversation_id = UUID(config["configurable"]["thread_id"])
+        summary = summarize(state)
+        with pool.connection() as conn:
+            handoffs.open_handoff(conn, conversation_id, state["safety"], summary, state.get("trace_id"))
+        notice = NURSE_NOTIFIED_NOTICE if state["safety"] == "emergency" else None
+        return {"notice": notice}
+
+    return create_handoff
+
+
+def wait_for_staff(state: ChatState) -> ChatState:
+    """Pause until staff close the handoff. The resume value is what the patient and
+    staff wrote meanwhile; it goes into memory so later answers have the context."""
+    transcript = interrupt({"waiting_for": "staff"}) or []
+    said: list[AnyMessage] = []
+    for m in transcript:
+        if m["sender"] == "patient":
+            said.append(HumanMessage(m["content"]))
+        else:
+            said.append(AIMessage(f"{m.get('staff_name') or 'Staff'}: {m['content']}"))
+    return {"messages": [*said, AIMessage(config.ASSISTANT_BACK_NOTICE)]}
 
 
 def router(state: ChatState) -> ChatState:
@@ -111,6 +160,8 @@ def build_graph(pool: ConnectionPool, checkpointer: BaseCheckpointSaver) -> Comp
     g = StateGraph(ChatState)
     g.add_node("safety_check", safety_check)
     g.add_node("escalate", escalate)
+    g.add_node("create_handoff", make_create_handoff_node(pool))
+    g.add_node("wait_for_staff", wait_for_staff)
     g.add_node("router", router)
     g.add_node("tools", make_tools_node(pool))
     g.add_node("reply", reply)
@@ -120,11 +171,13 @@ def build_graph(pool: ConnectionPool, checkpointer: BaseCheckpointSaver) -> Comp
     g.add_conditional_edges("safety_check", after_safety, ["router", "escalate"])
     g.add_conditional_edges("router", after_router, ["tools", "reply"])
     g.add_edge("tools", "answer")
-    g.add_edge("escalate", END)
+    g.add_edge("escalate", "create_handoff")
+    g.add_edge("create_handoff", "wait_for_staff")
+    g.add_edge("wait_for_staff", END)
     g.add_edge("reply", END)
     g.add_edge("answer", END)
     return g.compile(checkpointer=checkpointer)
 
 
-def turn_input(patient_id: UUID, message: str) -> ChatState:
-    return {"patient_id": str(patient_id), "messages": [HumanMessage(message)]}
+def turn_input(patient_id: UUID, message: str, trace_id: str | None = None) -> ChatState:
+    return {"patient_id": str(patient_id), "messages": [HumanMessage(message)], "trace_id": trace_id}

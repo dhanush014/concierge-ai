@@ -90,10 +90,11 @@ chunks             id, content, embedding vector(384), source_type ('policy'|'re
                    doc_title, section, date, sensitive (bool), content_hash
 conversations      id, patient_id, status ('bot'|'handoff'|'closed'), created_at
 messages           id, conversation_id, sender ('patient'|'assistant'|'staff'), staff_id,
-                   kind ('text'|'emergency'|'handoff', how the UI shows it), content, created_at
+                   kind ('text'|'emergency'|'handoff'|'notice', how the UI shows it), content, created_at
                    deleting a conversation also deletes its LangGraph state (trigger)
-handoffs           id, conversation_id, reason, summary, status ('open'|'active'|'closed'),
-                   staff_id, created_at, closed_at
+handoffs           id, conversation_id, reason ('emergency'|'clinical'|'wants_human'), summary,
+                   status ('open'|'active'|'closed'), staff_id, trace_id (LangSmith run), created_at, closed_at
+                   at most one open/active handoff per conversation (partial unique index)
 ```
 Schema `langgraph`: LangGraph's Postgres checkpointer (graph state per conversation,
 thread id = conversation id). Its tables are created and upgraded by the library's

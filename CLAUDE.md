@@ -53,6 +53,7 @@ cd web && npm run dev
 * Every API endpoint gets at least one pytest test.
 * Every file path resolved relative to the file, so scripts run from any folder.
 * The agent never gives medical advice or interprets results. When in doubt, hand off.
+* This is a portfolio demo with fake data. Do not add security hardening beyond what a feature needs to work, unless I ask.
 
 ## Style
 

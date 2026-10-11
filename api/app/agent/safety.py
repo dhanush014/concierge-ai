@@ -185,3 +185,13 @@ def check(text: str) -> SafetyResult:
             reason=loose[1] if loose else None,
             flag=flag,
         )
+
+
+def is_emergency_by_rules(text: str) -> bool:
+    """Regex only, no LLM: any strict or loose emergency rule. Used while a nurse is
+    being waited for, when the agent is otherwise silent but a 911 message must still
+    go out immediately."""
+    lower = text.lower().replace("’", "'")
+    return any(
+        cat == "emergency" and compiled.search(lower) for cat, _, compiled in (*_STRICT, *_LOOSE)
+    )

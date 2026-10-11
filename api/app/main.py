@@ -9,7 +9,7 @@ from app.agent.checkpointer import open_checkpointer
 from app.agent.graph import build_graph
 from app.agent.llm import check_mode_at_startup
 from app.db import db_error_handler, open_pool
-from app.routes import appointments, chat, documents
+from app.routes import appointments, chat, documents, handoffs
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ app.add_exception_handler(psycopg.Error, db_error_handler)
 app.include_router(appointments.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
+app.include_router(handoffs.router)
 
 
 @app.get("/health")

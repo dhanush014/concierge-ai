@@ -5,6 +5,8 @@ export type ShownMessage = {
   sender: "patient" | "assistant" | "staff";
   kind: MessageKind;
   content: string;
+  /** For staff messages: e.g. "Nurse Kim". */
+  staffName?: string | null;
   /** Still streaming in. */
   pending?: boolean;
 };
@@ -19,7 +21,10 @@ export function MessageList({ messages }: { messages: ShownMessage[] }) {
   return (
     <ol aria-label="Conversation" className="mb-6 flex flex-col gap-4">
       {messages.map((m) => (
-        <li key={m.key} className={m.sender === "patient" ? "flex justify-end" : "flex justify-start"}>
+        <li
+          key={m.key}
+          className={m.kind === "notice" ? "flex justify-center" : m.sender === "patient" ? "flex justify-end" : "flex justify-start"}
+        >
           <Message message={m} />
         </li>
       ))}
@@ -28,6 +33,20 @@ export function MessageList({ messages }: { messages: ShownMessage[] }) {
 }
 
 function Message({ message: m }: { message: ShownMessage }) {
+  if (m.kind === "notice") {
+    return <p className="px-2 text-center text-muted">{m.content}</p>;
+  }
+
+  if (m.sender === "staff") {
+    return (
+      <div className={`${bubble} border border-accent bg-white text-ink`}>
+        <p className="mb-1 text-sm font-semibold text-accent">{m.staffName ?? "Staff"}</p>
+        <span className="sr-only">said: </span>
+        {m.content}
+      </div>
+    );
+  }
+
   if (m.sender === "patient") {
     return (
       <div className={`${bubble} bg-accent text-white`}>
@@ -57,7 +76,7 @@ function Message({ message: m }: { message: ShownMessage }) {
   if (m.kind === "handoff") {
     return (
       <div className={`${bubble} border-l-4 border-warn bg-warn-soft text-warn`}>
-        <p className="mb-1 text-sm font-semibold uppercase tracking-wide">A nurse will follow up</p>
+        <p className="mb-1 text-sm font-semibold uppercase tracking-wide">Nurse handoff</p>
         <p>
           <span className="sr-only">Assistant: </span>
           {m.content}

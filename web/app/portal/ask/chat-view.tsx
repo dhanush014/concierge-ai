@@ -4,35 +4,19 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { StatusMessage, type Status } from "@/components/status-message";
 import { isRetryable, isStatus } from "@/lib/api";
-import {
-  getConversation,
-  getLatestConversation,
-  messageFor,
-  streamChat,
-  type Conversation,
-} from "@/lib/chat";
+import { getConversation, getLatestConversation, messageFor, streamChat, type Conversation } from "@/lib/chat";
 import { Composer } from "./composer";
 import { MessageList, type ShownMessage } from "./message-list";
+import { arrivals, empty, fromConversation, staffInChat, type Session } from "./session";
+import { useLiveConversation } from "./use-live-conversation";
 
 const BASE = "/portal/ask";
 const SUGGESTIONS = ["When is my next appointment?", "What documents have I uploaded?", "What were my past visits?"];
 
-/** What is on screen. `key` is the URL state it belongs to: a conversation id, "new" or "latest". */
-type Session = { key: string; conversationId: string | null; messages: ShownMessage[] };
-
-function fromConversation(c: Conversation): Session {
-  return {
-    key: c.id,
-    conversationId: c.id,
-    messages: c.messages.map((m) => ({ key: m.id, sender: m.sender, kind: m.kind, content: m.content })),
-  };
-}
-
-const empty = (key: string): Session => ({ key, conversationId: null, messages: [] });
-
 /**
  * The Ask tab. URL: no ?c = reopen your latest conversation; ?c=<id> = that one;
  * ?c=new = a fresh one (created by the first message, then the URL becomes its id).
+ * During a handoff the assistant is quiet; staff replies arrive live.
  */
 export function ChatView() {
   const router = useRouter();
@@ -47,6 +31,10 @@ export function ChatView() {
   const [announced, setAnnounced] = useState({ polite: "", urgent: "" });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const sessionRef = useRef(session);
+  useEffect(() => {
+    sessionRef.current = session;
+  });
 
   // Where we're navigating ourselves (New conversation, or a new chat getting its id).
   // Until the URL gets there, the old URL must not trigger a load.
@@ -88,19 +76,20 @@ export function ChatView() {
     };
   }, [needsLoad, urlKey, reloadTick, router]);
 
+  // Staff replies, "joined" notices and status changes, live.
+  useLiveConversation(session.conversationId, streaming, (c: Conversation) => {
+    const before = sessionRef.current;
+    if (before.conversationId !== c.id) return;
+    const next = fromConversation(c);
+    setSession({ ...next, key: before.key });
+    const said = arrivals(before.messages, next.messages);
+    if (said) setAnnounced({ polite: said, urgent: "" });
+  });
+
   // Keep the newest message (and the input) in view as the reply streams in.
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [session.messages]);
-
-  function updateLast(patch: Partial<ShownMessage> | ((m: ShownMessage) => Partial<ShownMessage>)) {
-    setSession((s) => {
-      const messages = [...s.messages];
-      const last = messages[messages.length - 1];
-      messages[messages.length - 1] = { ...last, ...(typeof patch === "function" ? patch(last) : patch) };
-      return { ...s, messages };
-    });
-  }
 
   async function send(text: string) {
     const question = text.trim();
@@ -109,16 +98,30 @@ export function ChatView() {
     setAnnounced({ polite: "", urgent: "" });
     setInput("");
     setStreaming(true);
+    const waiting = session.status === "handoff"; // a nurse answers now, not the assistant
     const stamp = Date.now();
+    const replyKey = `reply-${stamp}`;
+    const blank: ShownMessage = { key: replyKey, sender: "assistant", kind: "text", content: "", pending: true };
     setSession((s) => ({
       ...s,
       messages: [
         ...s.messages,
         { key: `you-${stamp}`, sender: "patient", kind: "text", content: question },
-        { key: `reply-${stamp}`, sender: "assistant", kind: "text", content: "", pending: true },
+        ...(waiting ? [] : [blank]), // "Thinking…" only when the assistant will answer
       ],
     }));
     inputRef.current?.focus(); // e.g. after a suggestion button, which then disappears
+
+    // The reply bubble, found by key (notices may come after it); created on first use.
+    const patchReply = (patch: (m: ShownMessage) => Partial<ShownMessage>) =>
+      setSession((s) => {
+        const i = s.messages.findIndex((m) => m.key === replyKey);
+        const messages = [...s.messages];
+        if (i < 0) messages.push({ ...blank, ...patch(blank) });
+        else messages[i] = { ...messages[i], ...patch(messages[i]) };
+        return { ...s, messages };
+      });
+    const dropReply = () => setSession((s) => ({ ...s, messages: s.messages.filter((m) => m.key !== replyKey) }));
 
     let conversationId = session.conversationId;
     const adopt = (id: string) => {
@@ -126,6 +129,7 @@ export function ChatView() {
       if (urlKey !== id) navigate(id, "replace");
     };
     let reply = "";
+    const notices: string[] = [];
     try {
       const done = await streamChat(conversationId, question, {
         onConversation: (id) => {
@@ -133,14 +137,24 @@ export function ChatView() {
         },
         onToken: (t) => {
           reply += t;
-          updateLast((m) => ({ content: m.content + t }));
+          patchReply((m) => ({ content: m.content + t }));
+        },
+        onNotice: (t) => {
+          notices.push(t);
+          setSession((s) => ({
+            ...s,
+            messages: [...s.messages, { key: `notice-${stamp}-${notices.length}`, sender: "assistant", kind: "notice", content: t }],
+          }));
         },
       });
-      updateLast({ kind: done.kind, pending: false });
-      setAnnounced(done.kind === "emergency" ? { polite: "", urgent: reply } : { polite: `Assistant: ${reply}`, urgent: "" });
+      if (reply) patchReply(() => ({ kind: done.kind ?? "text", pending: false }));
+      else dropReply();
+      setSession((s) => ({ ...s, status: done.status }));
+      const spoken = [reply, ...notices].filter(Boolean).join(" ") || "Sent. The nurse will see your message.";
+      setAnnounced(done.kind === "emergency" ? { polite: "", urgent: spoken } : { polite: reply ? `Assistant: ${spoken}` : spoken, urgent: "" });
       if (conversationId) adopt(conversationId);
     } catch (error) {
-      setSession((s) => ({ ...s, messages: s.messages.slice(0, -1) })); // drop the unfinished reply
+      dropReply(); // the unfinished reply
       if (isStatus(error, 401)) return router.replace("/login");
       if (isStatus(error, 404)) {
         setStatus({ kind: "error", text: messageFor(error) });
@@ -188,6 +202,7 @@ export function ChatView() {
         }
       : null);
   const loading = needsLoad && !failed;
+  const nurse = staffInChat(session);
 
   return (
     <>
@@ -237,6 +252,12 @@ export function ChatView() {
         </section>
       ) : (
         <MessageList messages={session.messages} />
+      )}
+
+      {session.status === "handoff" && (
+        <p className="mb-4 rounded-md border-l-4 border-warn bg-warn-soft px-4 py-3 font-medium text-warn">
+          {nurse ? `You're chatting with ${nurse}.` : "Connecting you to a nurse… They'll see your messages here."}
+        </p>
       )}
 
       <Composer value={input} onChange={setInput} onSend={() => send(input)} streaming={streaming} inputRef={inputRef} />

@@ -29,3 +29,9 @@ convert or recalculate them.
 Records:
 {records}
 """
+
+SUMMARY_PROMPT = """\
+A patient's chat is being handed to a nurse. Write ONE short sentence (max 25 words) \
+telling the nurse why the patient needs a person, using only what the patient wrote. \
+Facts only: no advice, no diagnosis, no guesses. Plain text, no quotes.
+"""

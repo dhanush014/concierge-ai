@@ -9,7 +9,7 @@ from uuid import UUID
 
 import psycopg
 
-from app.models import Appointment, Document
+from app.models import Appointment, Document, Message
 
 APPOINTMENT_SELECT = """
     select a.id, a.status, a.created_at, a.slot_id,
@@ -47,3 +47,14 @@ def my_documents(conn: psycopg.Connection, patient_id: UUID) -> list[Document]:
         (patient_id,),
     ).fetchall()
     return [Document(**r) for r in rows]
+
+
+def conversation_messages(conn: psycopg.Connection, conversation_id: UUID) -> list[Message]:
+    """Oldest first; staff messages carry the staff member's display name."""
+    rows = conn.execute(
+        "select m.id, m.sender, m.kind, m.content, m.created_at, p.display_name as staff_name"
+        " from public.messages m left join public.profiles p on p.id = m.staff_id"
+        " where m.conversation_id = %s order by m.created_at, m.id",
+        (conversation_id,),
+    ).fetchall()
+    return [Message(**r) for r in rows]

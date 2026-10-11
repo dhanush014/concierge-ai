@@ -6,11 +6,13 @@ from zoneinfo import ZoneInfo
 SAFETY_MODEL = "openai/gpt-oss-20b"
 ROUTER_MODEL = "openai/gpt-oss-20b"
 ANSWER_MODEL = "openai/gpt-oss-120b"
+SUMMARY_MODEL = "openai/gpt-oss-20b"  # one-line handoff summary for staff
 
 # The safety LLM gets this long before the cascade falls back to its regex flag.
 SAFETY_TIMEOUT_SECONDS = 3.0
 ROUTER_TIMEOUT_SECONDS = 3.0
 ANSWER_TIMEOUT_SECONDS = 30.0
+SUMMARY_TIMEOUT_SECONDS = 5.0
 
 # Same clinic time zone as the web app (web/lib/time.ts). Tool results are turned
 # into clinic time in code so the LLM never does time-zone math.
@@ -23,9 +25,13 @@ EMERGENCY_REPLY = (
     "If you are thinking about harming yourself, call or text 988."
 )
 NURSE_REPLY = (
-    "I can't help with that here, but a nurse will follow up with you. "
+    "Connecting you to a nurse. They'll reply here as soon as they can. "
     "If it gets worse or feels urgent, call 911."
 )
+# Notices: short system lines in the chat (messages.kind = 'notice').
+NURSE_NOTIFIED_NOTICE = "A nurse has been notified and will join this chat."
+ASSISTANT_BACK_NOTICE = "The assistant is back. Ask me about your appointments or documents."
+STAFF_JOINED_NOTICE = "{name} joined the chat."
 CHANGE_APPOINTMENT_REPLY = (
     "I can't book, reschedule or cancel visits in chat. "
     "Use the Appointments tab: it shows open times and makes the change right away."

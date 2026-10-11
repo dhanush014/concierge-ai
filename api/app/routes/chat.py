@@ -4,13 +4,20 @@ A conversation that isn't yours gets the same 404 as one that doesn't exist.
 
 Stream events (each `data: <json>`):
   {"type": "conversation", "id": ...}           first, always
-  {"type": "token", "text": ...}                 one or more; join them for the reply
-  {"type": "done", "safety": ..., "route": ..., "kind": ...}  last on success
+  {"type": "token", "text": ...}                 zero or more; join them for the reply
+  {"type": "notice", "text": ...}                a system line, e.g. "A nurse has been notified"
+  {"type": "done", "safety", "route", "kind", "status"}  last on success;
+                                                 status "handoff" = waiting for staff
   {"type": "error", "message": "chat_failed"}    last on failure (patient message is kept)
+
+While a conversation is in handoff the agent stays silent: the patient's message is
+saved and staff see it live. One exception: an emergency (regex rules, no LLM) still
+gets the 911 message at once, and the ticket is flagged as an emergency.
 """
 
 import json
 import logging
+import uuid
 from collections.abc import Iterator
 from typing import Annotated, Any
 from uuid import UUID
@@ -21,10 +28,14 @@ from fastapi.responses import StreamingResponse
 from langgraph.graph.state import CompiledStateGraph
 from psycopg_pool import ConnectionPool
 
+from app import handoffs
+from app.agent import config as agent_config
 from app.agent.graph import turn_input
+from app.agent.safety import is_emergency_by_rules
 from app.db import Conn
 from app.deps import get_current_patient
-from app.models import ChatRequest, Conversation, Message
+from app.models import ChatRequest, Conversation
+from app.queries import conversation_messages
 
 router = APIRouter(prefix="/me", tags=["chat"])
 log = logging.getLogger(__name__)
@@ -34,11 +45,7 @@ PatientId = Annotated[UUID, Depends(get_current_patient)]
 NOT_FOUND = HTTPException(status_code=404, detail="conversation_not_found")
 FIXED_TEXT_NODES = ("escalate", "reply")  # nodes that send a fixed reply, not tokens
 
-INSERT_MESSAGE = (
-    "insert into public.messages (conversation_id, sender, content, kind) values (%s, %s, %s, %s)"
-)
-
-# How the reply is shown: red for emergencies, amber when a nurse will follow up.
+# How the reply is shown: red for emergencies, amber when a nurse is being connected.
 KIND_FOR_SAFETY = {"emergency": "emergency", "clinical": "handoff", "wants_human": "handoff"}
 
 
@@ -59,59 +66,91 @@ def sse(event: dict[str, Any]) -> str:
 def run_turn(
     graph: CompiledStateGraph, pool: ConnectionPool, conversation_id: UUID, patient_id: UUID, message: str
 ) -> Iterator[str]:
-    """Run one graph turn, yielding SSE lines, then save the assistant's reply.
+    """Run one graph turn, yielding SSE lines and saving each reply as its node finishes
+    (so a 911 message is saved and shown before the handoff is even created).
 
     Runs after the request's own connection is released, so it saves with its own.
     """
     yield sse({"type": "conversation", "id": str(conversation_id)})
-    config = {"configurable": {"thread_id": str(conversation_id)}}
+    trace_id = str(uuid.uuid4())  # becomes the LangSmith run id of this turn
+    config = {"configurable": {"thread_id": str(conversation_id)}, "run_id": trace_id}
+    kind = "text"
+    category = "ok"
+
+    def save(content: str, kind: str) -> None:
+        with pool.connection() as conn:
+            handoffs.save_message(conn, conversation_id, "assistant", content, kind)
+
     try:
         for mode, data in graph.stream(
-            turn_input(patient_id, message), config, stream_mode=["messages", "updates"]
+            turn_input(patient_id, message, trace_id), config, stream_mode=["messages", "updates"]
         ):
             if mode == "messages":
                 chunk, meta = data
                 if meta.get("langgraph_node") == "answer" and isinstance(chunk.content, str) and chunk.content:
                     yield sse({"type": "token", "text": chunk.content})
-            else:
-                for node, update in data.items():
-                    if node in FIXED_TEXT_NODES:
-                        yield sse({"type": "token", "text": update["messages"][-1].content})
+                continue
+            for node, update in data.items():
+                if node == "safety_check":
+                    category = update["safety"]
+                elif node in FIXED_TEXT_NODES:
+                    text = update["messages"][-1].content
+                    kind = KIND_FOR_SAFETY.get(category, "text")
+                    save(text, kind)
+                    yield sse({"type": "token", "text": text})
+                elif node == "answer":
+                    save(update["messages"][-1].content, "text")
+                elif node == "create_handoff" and update.get("notice"):
+                    save(update["notice"], "notice")
+                    yield sse({"type": "notice", "text": update["notice"]})
 
-        state = graph.get_state(config).values
-        kind = KIND_FOR_SAFETY.get(state["safety"], "text")
-        with pool.connection() as conn:
-            conn.execute(INSERT_MESSAGE, (conversation_id, "assistant", state["messages"][-1].content, kind))
-        yield sse({"type": "done", "safety": state["safety"], "route": state.get("route"), "kind": kind})
+        state = graph.get_state(config)
+        status = "handoff" if state.next else "bot"  # paused at wait_for_staff
+        values = state.values
+        yield sse({"type": "done", "safety": values["safety"], "route": values.get("route"), "kind": kind, "status": status})
     except Exception:
         log.exception("Chat turn failed for conversation %s", conversation_id)
         yield sse({"type": "error", "message": "chat_failed"})
 
 
+def handoff_turn(conversation_id: UUID, emergency: bool) -> Iterator[str]:
+    """The reply while waiting for staff: nothing, unless it's an emergency."""
+    yield sse({"type": "conversation", "id": str(conversation_id)})
+    if emergency:
+        yield sse({"type": "token", "text": agent_config.EMERGENCY_REPLY})
+    kind = "emergency" if emergency else None
+    yield sse({"type": "done", "safety": None, "route": None, "kind": kind, "status": "handoff"})
+
+
 @router.post("/chat")
 def chat(request: Request, conn: Conn, patient_id: PatientId, body: ChatRequest) -> StreamingResponse:
     if body.conversation_id is None:
-        conversation_id = conn.execute(
-            "insert into public.conversations (patient_id) values (%s) returning id", (patient_id,)
-        ).fetchone()["id"]
+        convo = conn.execute(
+            "insert into public.conversations (patient_id) values (%s) returning id, status", (patient_id,)
+        ).fetchone()
     else:
-        conversation_id = owned_conversation(conn, body.conversation_id, patient_id)["id"]
+        convo = owned_conversation(conn, body.conversation_id, patient_id)
+    conversation_id = convo["id"]
     # Saved (committed by the Conn dependency) before streaming starts.
-    conn.execute(INSERT_MESSAGE, (conversation_id, "patient", body.message, "text"))
+    handoffs.save_message(conn, conversation_id, "patient", body.message)
 
-    stream = run_turn(
-        request.app.state.chat_graph, request.app.state.pool, conversation_id, patient_id, body.message
-    )
+    if convo["status"] == "handoff":
+        live = handoffs.live_handoff(conn, conversation_id)
+        emergency = is_emergency_by_rules(body.message)
+        if emergency:
+            handoffs.save_message(conn, conversation_id, "assistant", agent_config.EMERGENCY_REPLY, "emergency")
+            if live is not None:
+                handoffs.flag_emergency(conn, live["id"])
+        stream = handoff_turn(conversation_id, emergency)
+    else:
+        stream = run_turn(
+            request.app.state.chat_graph, request.app.state.pool, conversation_id, patient_id, body.message
+        )
     return StreamingResponse(stream, media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
 def with_messages(conn: psycopg.Connection, convo: dict) -> Conversation:
-    rows = conn.execute(
-        "select id, sender, kind, content, created_at from public.messages"
-        " where conversation_id = %s order by created_at, id",
-        (convo["id"],),
-    ).fetchall()
-    return Conversation(**convo, messages=[Message(**r) for r in rows])
+    return Conversation(**convo, messages=conversation_messages(conn, convo["id"]))
 
 
 # Declared before /conversations/{conversation_id} so "latest" isn't read as an id.

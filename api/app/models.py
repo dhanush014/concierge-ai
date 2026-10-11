@@ -68,9 +68,10 @@ class ChatRequest(BaseModel):
 class Message(BaseModel):
     id: UUID
     sender: Literal["patient", "assistant", "staff"]
-    kind: Literal["text", "emergency", "handoff"]
+    kind: Literal["text", "emergency", "handoff", "notice"]
     content: str
     created_at: datetime
+    staff_name: str | None = None
 
 
 class Conversation(BaseModel):
@@ -78,3 +79,28 @@ class Conversation(BaseModel):
     status: Literal["bot", "handoff", "closed"]
     created_at: datetime
     messages: list[Message]
+
+
+class Handoff(BaseModel):
+    id: UUID
+    conversation_id: UUID
+    patient_name: str
+    reason: Literal["emergency", "clinical", "wants_human"]
+    summary: str
+    status: Literal["open", "active", "closed"]
+    staff_id: UUID | None
+    staff_name: str | None
+    created_at: datetime
+    closed_at: datetime | None
+
+
+class HandoffDetail(Handoff):
+    messages: list[Message]
+    trace_url: str | None
+
+
+StaffText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+
+
+class StaffMessageRequest(BaseModel):
+    content: StaffText

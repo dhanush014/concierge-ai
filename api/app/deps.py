@@ -51,3 +51,10 @@ def get_current_patient(user: Annotated[CurrentUser, Depends(current_user)]) -> 
     if user.role != "patient" or user.patient_id is None:
         raise HTTPException(status_code=403, detail="patients_only")
     return user.patient_id
+
+
+def get_current_staff(user: Annotated[CurrentUser, Depends(current_user)]) -> CurrentUser:
+    """The logged-in staff member. Patients get 403 on staff routes."""
+    if user.role != "staff":
+        raise HTTPException(status_code=403, detail="staff_only")
+    return user

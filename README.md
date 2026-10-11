@@ -65,6 +65,12 @@ use a fake model and never call Groq.
 **Web** (Next.js, http://localhost:3000). Reads the `NEXT_PUBLIC_*` values from the root `.env`.
 Sign in with a demo login printed by the seed script: patients land on `/portal`, staff on `/staff`.
 
+**Live handoff demo.** Open two browsers: a patient (`aja.casper@…`) on **Ask** and staff
+(`nurse.kim@…`) on the **Staff inbox**. "I need to talk to someone" pauses the agent and the
+ticket appears in the inbox live; Join, reply, Close, and the patient sees each step live
+(Supabase Realtime). While waiting for a nurse the agent is silent, except an emergency still
+gets the 911 message. "View trace" shows when the `LANGSMITH_*` values are set.
+
 **End-to-end tests** (Playwright; needs `supabase start` and the seed run once):
 
 ```bash

@@ -71,7 +71,7 @@ def test_reply_kind_is_saved(client: TestClient, make: Factory, message: str, ki
     patient = make.patient()
     conversation_id = send(client, patient, message)
     body = client.get(f"/me/conversations/{conversation_id}", headers=as_patient(patient)).json()
-    assert [(m["sender"], m["kind"]) for m in body["messages"]] == [("patient", "text"), ("assistant", kind)]
+    assert [(m["sender"], m["kind"]) for m in body["messages"]][:2] == [("patient", "text"), ("assistant", kind)]
 
 
 # --- deleting a conversation deletes all of its LangGraph state ---

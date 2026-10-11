@@ -6,6 +6,7 @@ llm.llm_mode). Never used by pytest, which has its own scripted fake.
   safety  always "ok", so only the real regex rules can escalate
   router  keyword rules
   answer  repeats the tool's records back, streamed word by word
+  summary quotes the patient's last message
 """
 
 import json
@@ -46,6 +47,8 @@ class FakeChatModel(BaseChatModel):
             return json.dumps({"category": "ok", "reason": "fake LLM mode"})
         if self.role == "router":
             return json.dumps({"route": fake_route(_last_human(messages))})
+        if self.role == "summary":
+            return f'Patient asked: "{_last_human(messages)}"'
         system = str(messages[0].content)
         records = system.split(RECORDS_MARKER, 1)[-1].strip()
         return f"Here is what I found.\n{records}"

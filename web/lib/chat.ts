@@ -1,6 +1,7 @@
 import { ApiError, apiFetch, apiResponse } from "@/lib/api";
 
-export type MessageKind = "text" | "emergency" | "handoff";
+export type MessageKind = "text" | "emergency" | "handoff" | "notice";
+export type ConversationStatus = "bot" | "handoff" | "closed";
 
 export type ChatMessage = {
   id: string;
@@ -8,21 +9,23 @@ export type ChatMessage = {
   kind: MessageKind;
   content: string;
   created_at: string;
+  staff_name: string | null;
 };
 
 export type Conversation = {
   id: string;
-  status: "bot" | "handoff" | "closed";
+  status: ConversationStatus;
   created_at: string;
   messages: ChatMessage[];
 };
 
-/** The last event of a successful reply. */
-export type ChatDone = { kind: MessageKind };
+/** The last event of a successful reply. kind is null when nothing was said (during a handoff). */
+export type ChatDone = { kind: MessageKind | null; status: ConversationStatus };
 
 type StreamEvent =
   | { type: "conversation"; id: string }
   | { type: "token"; text: string }
+  | { type: "notice"; text: string }
   | ({ type: "done" } & ChatDone)
   | { type: "error"; message: string };
 
@@ -48,6 +51,7 @@ export function getLatestConversation(): Promise<Conversation | null> {
 type Handlers = {
   onConversation: (id: string) => void;
   onToken: (text: string) => void;
+  onNotice: (text: string) => void;
 };
 
 /**
@@ -77,7 +81,8 @@ export async function streamChat(conversationId: string | null, message: string,
         const event = JSON.parse(part.slice(6)) as StreamEvent;
         if (event.type === "conversation") handlers.onConversation(event.id);
         else if (event.type === "token") handlers.onToken(event.text);
-        else if (event.type === "done") return { kind: event.kind };
+        else if (event.type === "notice") handlers.onNotice(event.text);
+        else if (event.type === "done") return { kind: event.kind, status: event.status };
         else throw new ChatStreamError();
       }
     }
