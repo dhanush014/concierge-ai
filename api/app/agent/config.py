@@ -11,6 +11,11 @@ SUMMARY_MODEL = "openai/gpt-oss-20b"  # one-line handoff summary for staff
 # Local embeddings for RAG (sentence-transformers, runs on this machine).
 EMBED_MODEL = "BAAI/bge-small-en-v1.5"
 EMBED_DIMS = 384
+# bge's instruction for queries (documents are embedded without it).
+QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+RERANK_MODEL = "BAAI/bge-reranker-base"  # cross-encoder, local
+RETRIEVE_CANDIDATES = 25  # nearest chunks pulled by vector search, then reranked
+RETRIEVE_TOP_N = 5  # kept after reranking
 
 # The safety LLM gets this long before the cascade falls back to its regex flag.
 SAFETY_TIMEOUT_SECONDS = 3.0

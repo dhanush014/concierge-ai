@@ -114,9 +114,11 @@ read handoffs, conversations, messages.
 - Skip re-embedding when `content_hash` is unchanged.
 
 **Query**:
-embed question -> pgvector search with filters (this patient's records OR policy docs;
+embed question -> exact pgvector search with filters (this patient's records OR policy docs;
 contract questions filter by payer; exclude sensitive) -> top 25 -> rerank -> top 5 ->
-LLM answers only from those 5, citing each.
+LLM answers only from those 5, citing each. Exact search, no vector index: filters leave a
+few hundred rows (sub-millisecond), and an HNSW index applies filters after its search and
+can return nothing (evals/compare_vector_search.py). Shown records newest first.
 
 ## Data to create
 - Synthea patients (reuse existing generator), ~20 patients, payers included

@@ -1,0 +1,22 @@
+{
+  "about": "Record questions for evals/run_retrieval.py. The right chunk(s) are found in the database at run time: the patient's non-sensitive record chunks with this doc_title whose section matches 'section' (SQL ILIKE). 'latest' = only the newest such chunk(s) count; 'any' = any of them.",
+  "cases": [
+    {"patient": "Bart Brekke", "question": "What was my latest A1c?", "doc_title": "Lab result", "section": "Hemoglobin A1c%", "match": "latest"},
+    {"patient": "Bart Brekke", "question": "What was my most recent cholesterol result?", "doc_title": "Lab result", "section": "Cholesterol [Mass/volume]%", "match": "latest"},
+    {"patient": "Bart Brekke", "question": "What is my LDL?", "doc_title": "Lab result", "section": "Cholesterol in LDL%", "match": "latest"},
+    {"patient": "Bart Brekke", "question": "What was my blood pressure at my last visit?", "doc_title": "Vital sign", "section": "Blood pressure%", "match": "latest"},
+    {"patient": "Bart Brekke", "question": "What medications am I on?", "doc_title": "Medication prescribed", "section": "%", "match": "any"},
+    {"patient": "Bart Brekke", "question": "Do I take simvastatin?", "doc_title": "Medication prescribed", "section": "simvastatin%", "match": "any"},
+    {"patient": "Bart Brekke", "question": "When was my last check-up?", "doc_title": "Visit", "section": "%", "match": "latest"},
+    {"patient": "Bart Brekke", "question": "Which vaccines have I had?", "doc_title": "Immunization", "section": "%", "match": "any"},
+    {"patient": "Bart Brekke", "question": "How much do I weigh?", "doc_title": "Vital sign", "section": "Body Weight", "match": "latest"},
+    {"patient": "Bart Brekke", "question": "What was my creatinine level?", "doc_title": "Lab result", "section": "Creatinine%", "match": "latest"},
+    {"patient": "Bart Brekke", "question": "Do I have prediabetes?", "doc_title": "Condition", "section": "Prediabetes%", "match": "any"},
+    {"patient": "Aja Casper", "question": "When was my last visit?", "doc_title": "Visit", "section": "%", "match": "latest"},
+    {"patient": "Aja Casper", "question": "What birth control am I prescribed?", "doc_title": "Medication prescribed", "section": "%", "match": "any"},
+    {"patient": "Aja Casper", "question": "What was my hemoglobin?", "doc_title": "Lab result", "section": "Hemoglobin [Mass/volume]%", "match": "latest"},
+    {"patient": "Aja Casper", "question": "Did I get a flu shot?", "doc_title": "Immunization", "section": "Influenza%", "match": "any"},
+    {"patient": "Aja Casper", "question": "What is my BMI?", "doc_title": "Vital sign", "section": "Body mass index%", "match": "latest"},
+    {"patient": "Lakeisha Hessel", "question": "What am I allergic to?", "doc_title": "Allergy", "section": "%", "match": "any"}
+  ]
+}

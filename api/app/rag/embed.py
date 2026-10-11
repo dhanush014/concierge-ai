@@ -6,7 +6,7 @@ passages: " prefix is for queries only (step 2).
 
 from functools import lru_cache
 
-from app.agent.config import EMBED_DIMS, EMBED_MODEL
+from app.agent.config import EMBED_DIMS, EMBED_MODEL, QUERY_PREFIX
 
 BATCH_SIZE = 64
 
@@ -28,3 +28,8 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
         texts, batch_size=BATCH_SIZE, normalize_embeddings=True, show_progress_bar=len(texts) > 500
     )
     return vectors.tolist()
+
+
+def embed_query(question: str) -> list[float]:
+    """A question, with bge's query instruction in front."""
+    return embed_texts([QUERY_PREFIX + question])[0]

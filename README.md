@@ -38,6 +38,16 @@ uv run --project api scripts/ingest.py --only all   # or: policies | records
 ```
 
 Re-runnable: unchanged chunks aren't embedded again, chunks whose source is gone are removed.
+
+Retrieval evals (real models, local; run after ingesting):
+
+```bash
+uv run --project api evals/run_retrieval.py          # hit@5 / rank, with and without reranker
+```
+
+```bash
+uv run --project api evals/compare_vector_search.py  # exact vs HNSW index
+```
 The first run downloads the model (~130 MB) if it isn't cached. Checkable policy facts for
 later tests: `evals/policy_facts.json`.
 
