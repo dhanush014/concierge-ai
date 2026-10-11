@@ -28,6 +28,16 @@ function errorDetail(body: unknown, fallback: string): string {
  * Supabase access token as `Authorization: Bearer ...` and sends/receives JSON.
  */
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const resp = await apiResponse(path, init);
+  if (resp.status === 204) return undefined as T; // No Content (e.g. DELETE)
+  return (await resp.json()) as T;
+}
+
+/**
+ * Same as apiFetch (auth header, JSON body, ApiError on failure) but returns the raw
+ * successful Response, for callers that read the body themselves (chat streaming).
+ */
+export async function apiResponse(path: string, init: RequestInit = {}): Promise<Response> {
   const { data } = await createClient().auth.getSession();
   const token = data.session?.access_token;
 
@@ -49,8 +59,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     const body: unknown = await resp.json().catch(() => null);
     throw new ApiError(resp.status, errorDetail(body, resp.statusText));
   }
-  if (resp.status === 204) return undefined as T; // No Content (e.g. DELETE)
-  return (await resp.json()) as T;
+  return resp;
 }
 
 /** 500s and network failures: worth a Retry button. */

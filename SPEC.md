@@ -89,7 +89,9 @@ chunks             id, content, embedding vector(384), source_type ('policy'|'re
                    patient_id (null for policy), payer (null unless contract doc),
                    doc_title, section, date, sensitive (bool), content_hash
 conversations      id, patient_id, status ('bot'|'handoff'|'closed'), created_at
-messages           id, conversation_id, sender ('patient'|'assistant'|'staff'), staff_id, content, created_at
+messages           id, conversation_id, sender ('patient'|'assistant'|'staff'), staff_id,
+                   kind ('text'|'emergency'|'handoff', how the UI shows it), content, created_at
+                   deleting a conversation also deletes its LangGraph state (trigger)
 handoffs           id, conversation_id, reason, summary, status ('open'|'active'|'closed'),
                    staff_id, created_at, closed_at
 ```

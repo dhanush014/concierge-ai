@@ -43,7 +43,7 @@ def test_streams_tokens_and_saves_both_messages(client: TestClient, db, make: Fa
 
     evs = events(send(client, patient, "  when is my next visit?  "))
 
-    assert evs[0]["type"] == "conversation" and evs[-1] == {"type": "done", "safety": "ok", "route": "appointments"}
+    assert evs[0]["type"] == "conversation" and evs[-1] == {"type": "done", "safety": "ok", "route": "appointments", "kind": "text"}
     assert sum(e["type"] == "token" for e in evs) > 1  # really streamed, not one blob
     assert reply_text(evs) == fake_llm.replies["answer"]
     conversation_id = evs[0]["id"]
@@ -58,7 +58,7 @@ def test_streams_tokens_and_saves_both_messages(client: TestClient, db, make: Fa
 def test_escalation_streams_the_fixed_reply(client: TestClient, db, make: Factory) -> None:
     evs = events(send(client, make.patient(), "I want to kill myself"))
     assert reply_text(evs) == config.EMERGENCY_REPLY
-    assert evs[-1] == {"type": "done", "safety": "emergency", "route": None}
+    assert evs[-1] == {"type": "done", "safety": "emergency", "route": None, "kind": "emergency"}
     assert saved(db, evs[0]["id"])[-1] == ("assistant", config.EMERGENCY_REPLY)
 
 

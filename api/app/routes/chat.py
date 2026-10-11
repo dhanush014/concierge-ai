@@ -5,7 +5,7 @@ A conversation that isn't yours gets the same 404 as one that doesn't exist.
 Stream events (each `data: <json>`):
   {"type": "conversation", "id": ...}           first, always
   {"type": "token", "text": ...}                 one or more; join them for the reply
-  {"type": "done", "safety": ..., "route": ...}  last on success
+  {"type": "done", "safety": ..., "route": ..., "kind": ...}  last on success
   {"type": "error", "message": "chat_failed"}    last on failure (patient message is kept)
 """
 
@@ -35,8 +35,11 @@ NOT_FOUND = HTTPException(status_code=404, detail="conversation_not_found")
 FIXED_TEXT_NODES = ("escalate", "reply")  # nodes that send a fixed reply, not tokens
 
 INSERT_MESSAGE = (
-    "insert into public.messages (conversation_id, sender, content) values (%s, %s, %s)"
+    "insert into public.messages (conversation_id, sender, content, kind) values (%s, %s, %s, %s)"
 )
+
+# How the reply is shown: red for emergencies, amber when a nurse will follow up.
+KIND_FOR_SAFETY = {"emergency": "emergency", "clinical": "handoff", "wants_human": "handoff"}
 
 
 def owned_conversation(conn: psycopg.Connection, conversation_id: UUID, patient_id: UUID) -> dict:
@@ -76,9 +79,10 @@ def run_turn(
                         yield sse({"type": "token", "text": update["messages"][-1].content})
 
         state = graph.get_state(config).values
+        kind = KIND_FOR_SAFETY.get(state["safety"], "text")
         with pool.connection() as conn:
-            conn.execute(INSERT_MESSAGE, (conversation_id, "assistant", state["messages"][-1].content))
-        yield sse({"type": "done", "safety": state["safety"], "route": state.get("route")})
+            conn.execute(INSERT_MESSAGE, (conversation_id, "assistant", state["messages"][-1].content, kind))
+        yield sse({"type": "done", "safety": state["safety"], "route": state.get("route"), "kind": kind})
     except Exception:
         log.exception("Chat turn failed for conversation %s", conversation_id)
         yield sse({"type": "error", "message": "chat_failed"})
@@ -93,7 +97,7 @@ def chat(request: Request, conn: Conn, patient_id: PatientId, body: ChatRequest)
     else:
         conversation_id = owned_conversation(conn, body.conversation_id, patient_id)["id"]
     # Saved (committed by the Conn dependency) before streaming starts.
-    conn.execute(INSERT_MESSAGE, (conversation_id, "patient", body.message))
+    conn.execute(INSERT_MESSAGE, (conversation_id, "patient", body.message, "text"))
 
     stream = run_turn(
         request.app.state.chat_graph, request.app.state.pool, conversation_id, patient_id, body.message
@@ -101,12 +105,27 @@ def chat(request: Request, conn: Conn, patient_id: PatientId, body: ChatRequest)
     return StreamingResponse(stream, media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
 
 
-@router.get("/conversations/{conversation_id}")
-def get_conversation(conn: Conn, patient_id: PatientId, conversation_id: UUID) -> Conversation:
-    convo = owned_conversation(conn, conversation_id, patient_id)
+def with_messages(conn: psycopg.Connection, convo: dict) -> Conversation:
     rows = conn.execute(
-        "select id, sender, content, created_at from public.messages"
+        "select id, sender, kind, content, created_at from public.messages"
         " where conversation_id = %s order by created_at, id",
-        (conversation_id,),
+        (convo["id"],),
     ).fetchall()
     return Conversation(**convo, messages=[Message(**r) for r in rows])
+
+
+# Declared before /conversations/{conversation_id} so "latest" isn't read as an id.
+@router.get("/conversations/latest")
+def latest_conversation(conn: Conn, patient_id: PatientId) -> Conversation | None:
+    """Your newest conversation, or null if you have none. The Ask tab reopens it."""
+    convo = conn.execute(
+        "select id, status, created_at from public.conversations"
+        " where patient_id = %s order by created_at desc, id desc limit 1",
+        (patient_id,),
+    ).fetchone()
+    return None if convo is None else with_messages(conn, convo)
+
+
+@router.get("/conversations/{conversation_id}")
+def get_conversation(conn: Conn, patient_id: PatientId, conversation_id: UUID) -> Conversation:
+    return with_messages(conn, owned_conversation(conn, conversation_id, patient_id))

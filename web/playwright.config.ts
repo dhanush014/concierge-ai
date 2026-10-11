@@ -19,6 +19,8 @@ export default defineConfig({
     {
       command: "uv run uvicorn app.main:app --port 8000",
       cwd: path.resolve(__dirname, "../api"),
+      // Fake LLM: free, repeatable chat replies. Only allowed with APP_ENV=local.
+      env: { LLM_FAKE: "1", APP_ENV: "local", LANGSMITH_TRACING: "false" },
       url: "http://localhost:8000/health",
       reuseExistingServer: true,
     },

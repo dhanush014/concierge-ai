@@ -2,17 +2,19 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import psycopg
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.agent.checkpointer import open_checkpointer
 from app.agent.graph import build_graph
+from app.agent.llm import check_mode_at_startup
 from app.db import db_error_handler, open_pool
 from app.routes import appointments, chat, documents
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    app.state.llm_mode = check_mode_at_startup()  # refuses to start on a bad LLM_FAKE combo
     app.state.pool = open_pool()
     checkpoint_pool, checkpointer = open_checkpointer()
     app.state.chat_graph = build_graph(app.state.pool, checkpointer)
@@ -40,5 +42,6 @@ app.include_router(chat.router)
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health(request: Request) -> dict[str, str]:
+    # llm: "groq" or "fake"; the E2E setup refuses to run against a real-model API.
+    return {"status": "ok", "llm": request.app.state.llm_mode}

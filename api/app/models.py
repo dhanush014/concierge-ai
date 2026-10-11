@@ -68,6 +68,7 @@ class ChatRequest(BaseModel):
 class Message(BaseModel):
     id: UUID
     sender: Literal["patient", "assistant", "staff"]
+    kind: Literal["text", "emergency", "handoff"]
     content: str
     created_at: datetime
 

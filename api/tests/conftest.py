@@ -16,6 +16,7 @@ from psycopg.rows import dict_row
 
 # Tests never send traces. Set before app code loads .env (which won't override it).
 os.environ["LANGSMITH_TRACING"] = "false"
+os.environ["LLM_FAKE"] = "0"  # pytest patches in its own scripted fake (fake_llm fixture)
 
 from app import storage  # noqa: E402
 from app.agent import llm  # noqa: E402
@@ -147,14 +148,9 @@ class Factory:
         return doc_id
 
     def cleanup(self) -> None:
-        convos = self.db.execute(
-            "delete from public.conversations where patient_id = any(%s) returning id",
-            (self.patient_ids,),
-        ).fetchall()  # messages go with them (on delete cascade)
-        graph = getattr(app.state, "chat_graph", None)
-        for convo in convos:
-            if graph is not None:
-                graph.checkpointer.delete_thread(str(convo["id"]))
+        # Messages go with them (on delete cascade), LangGraph state via the
+        # conversations_delete_thread_state trigger.
+        self.db.execute("delete from public.conversations where patient_id = any(%s)", (self.patient_ids,))
         self.db.execute(
             "delete from public.appointments where patient_id = any(%s)"
             " or slot_id in (select id from public.slots where doctor_id = any(%s))",

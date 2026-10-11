@@ -163,3 +163,34 @@ export async function loginAs(page: Page, email: string): Promise<void> {
 export function card(page: Page, section: "upcoming" | "past", doctorName: string) {
   return page.locator(`section[aria-labelledby="${section}-heading"] li`).filter({ hasText: doctorName });
 }
+
+async function patientIdFor(email: string): Promise<string> {
+  const { userId } = await signIn(email);
+  const [profile] = await rest<{ patient_id: string }[]>("GET", `profiles?select=patient_id&id=eq.${userId}`);
+  return profile.patient_id;
+}
+
+/**
+ * Delete a patient's conversations created at or after `since` (ISO). Their messages
+ * and LangGraph state go with them (cascade + database trigger). Returns how many.
+ */
+export async function purgeConversationsSince(email: string, since: string): Promise<number> {
+  const patientId = await patientIdFor(email);
+  const deleted = await rest<{ id: string }[]>(
+    "DELETE",
+    `conversations?patient_id=eq.${patientId}&created_at=gte.${encodeURIComponent(since)}`,
+  );
+  return deleted.length;
+}
+
+/** Chat tests must never spend real model calls: refuse unless the API runs the fake LLM. */
+export async function assertFakeLlm(): Promise<void> {
+  const resp = await fetch(`${API_URL}/health`).catch(() => null);
+  const body = resp?.ok ? ((await resp.json()) as { llm?: string }) : null;
+  if (body?.llm !== "fake") {
+    throw new Error(
+      `The API on ${API_URL} is not in fake LLM mode (llm=${body?.llm ?? "unreachable"}). ` +
+        "Stop it so Playwright can start its own with LLM_FAKE=1 APP_ENV=local.",
+    );
+  }
+}

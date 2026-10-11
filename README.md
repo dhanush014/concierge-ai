@@ -76,6 +76,12 @@ npm run test:e2e
 They start the API and web servers if needed, create their own "Dr. E2E …" doctor and slots,
 and delete them afterwards (leftovers from a crashed run are removed at the start).
 
+The API runs with a **fake LLM** in E2E (`LLM_FAKE=1 APP_ENV=local`): free, repeatable
+replies that repeat the tool's records back. If an API is already running on :8000 with the
+real model, the run stops with "not in fake LLM mode"; stop that API first. `LLM_FAKE=1`
+without `APP_ENV=local` makes the API refuse to start, and fake mode logs a loud warning.
+`GET /health` shows which one is running (`"llm": "groq"` or `"fake"`).
+
 ```bash
 cd web
 npm install

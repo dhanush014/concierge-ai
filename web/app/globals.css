@@ -9,6 +9,9 @@
   --color-muted: #4b4b4b; /* 8.6:1 on white */
   --color-line: #cfd6da;
   --color-danger: #b42318;
+  --color-danger-soft: #fef3f2; /* danger text on it: 6.1:1 */
+  --color-warn: #8a4b00; /* amber, for "a nurse will follow up" */
+  --color-warn-soft: #fff6e5; /* warn text on it: 6.3:1 */
   --font-sans: var(--font-geist-sans), system-ui, sans-serif;
 }
 
