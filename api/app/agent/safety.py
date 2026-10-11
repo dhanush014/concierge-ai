@@ -109,6 +109,10 @@ LOOSE: dict[Category, list[str]] = {
         r"\b(dose|doses|dosage)\b",
         r"\b(skip|stop|double)\b[\w\s]{0,20}\b(medication|meds|pills?)\b",
         r"\b(pain|ache|aching|fever|rash|swelling|swollen|cough|nausea|headache|migraine|infection|lump|numb|tingling)\b",
+        # Added with the held-out cases: advice and interpretation the list above missed.
+        r"should i (keep|stay on) (taking|using|on)\b",
+        r"\bdouble up\b",
+        r"\bdoes\b [\w\s']{1,40}\bmean\b",
     ],
     "wants_human": [
         r"\b(someone|somebody|a person|a human)\b",

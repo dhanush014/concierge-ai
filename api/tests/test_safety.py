@@ -98,9 +98,14 @@ def test_strict_regex_agrees_with_labels(case: dict) -> None:
 
 
 def test_no_case_is_in_the_prompt() -> None:
-    """Prompt examples that equal test cases would turn the eval into memorization."""
+    """Prompt examples that equal eval questions would turn the evals into memorization:
+    the safety cases and the answer-eval questions (policy facts, record questions)."""
+    evals = CASES_FILE.parent
+    questions = [c["text"] for c in CASES]
+    questions += [f["question"] for f in json.loads((evals / "policy_facts.json").read_text())["facts"]]
+    questions += [c["question"] for c in json.loads((evals / "retrieval_cases.json").read_text())["cases"]]
     prompt = SAFETY_PROMPT.lower()
-    leaked = [c["text"] for c in CASES if c["text"].lower() in prompt]
+    leaked = [q for q in questions if q.lower().rstrip("?") in prompt]
     assert leaked == []
 
 

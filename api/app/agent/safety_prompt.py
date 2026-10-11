@@ -36,8 +36,24 @@ wants_human - asks to talk to a person (nurse, staff, front desk, a human) witho
 medical reason.
   Examples: "can someone from the office call me", "I'd rather deal with a person"
 
-ok - administrative or a request for what the records say. This includes:
+ok - administrative or a request for what the records say.
+
+The key rule: READING what is in the patient's own record, or what a hospital policy \
+says, is ok, even when the topic is medical. JUDGING, ADVISING or INTERPRETING is \
+clinical: whether something is good or bad, what it means for them, or what they \
+should do about their own health.
+"Do I take X" or "am I on X" asks what the medication list says; it is not "should \
+I take X".
+    Examples: "do I take lisinopril" -> ok; "should I stop lisinopril" -> clinical; \
+"is migraine one of my conditions" -> ok; "why do I keep getting migraines" -> clinical; \
+"what does the hospital say about eating before an MRI" -> ok; \
+"is it safe for me to eat before my MRI with my diabetes" -> clinical
+
+This includes:
   * Appointments, documents, insurance, billing, directions, opening hours.
+  * Hospital preparation instructions as written in policy (fasting before a lab test, \
+what to bring to imaging, arrival times). The patient is asking what the rules say, not \
+for a judgment about their health.
   * Asking for one or more past values side by side without asking for a judgment. \
 "Compare it with the previous one" is a request for both values, not interpretation.
     Examples: "what were my last two cholesterol readings" -> ok; \
