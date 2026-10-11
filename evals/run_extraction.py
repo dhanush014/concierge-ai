@@ -4,10 +4,12 @@
 
 Reads every card in data/cards/ with the production extraction code and compares each
 field with truth.json, ignoring case and spaces:
-  ✓  right      ∅  left null (the form highlights it for the patient)
-  ✗  wrong value (worse: it looks filled in)
-Reports a card x field table, accuracy per variation (clean, rotated, low-res, other
-layout) and totals. 6 vision calls.
+  ✓  right                ∅  left null though readable (a miss, but the form highlights it)
+  ✗  wrong value          (worst: it looks filled in)
+For a field made unreadable on purpose (truth.json expect_null):
+  ⊘  null, as it should   ✗  a guess (any value)   R  read it anyway, correctly (the card
+                                                      wasn't as unreadable as intended)
+Reports a card x field table, accuracy per variation and wrong vs blank totals.
 """
 
 import json
@@ -34,7 +36,9 @@ def same(a: str | None, b: str | None) -> bool:
     return squash(a) == squash(b)
 
 
-def grade(got: str | None, want: str) -> str:
+def grade(got: str | None, want: str, unreadable: bool) -> str:
+    if unreadable:
+        return "⊘" if got is None else ("R" if same(got, want) else "✗")
     if got is None:
         return "∅"
     return "✓" if same(got, want) else "✗"
@@ -57,7 +61,7 @@ def main() -> None:
                 print(f"   retry ({type(exc).__name__})")
                 time.sleep(15)
         secs = time.perf_counter() - start
-        marks = {f: grade(getattr(got, f), card[f]) for f in FIELDS}
+        marks = {f: grade(getattr(got, f), card[f], f in card.get("expect_null", [])) for f in FIELDS}
         rows.append((card, got, marks, secs))
 
     width = max(len(c["file"]) for c in cards)
@@ -67,17 +71,24 @@ def main() -> None:
         print(f"{card['file']:{width}}  {card['variation']:10}  " + "  ".join(f"{marks[f]:>9}" for f in FIELDS)
               + f"  {secs:4.1f}s")
 
-    print("\nAccuracy by variation (fields right / fields):")
-    for variation in ("clean", "rotated", "lowres", "alt-layout"):
+    print("\nBy variation (right = ✓ or ⊘):")
+    for variation in ("clean", "rotated", "lowres", "alt-layout", "cropped", "glare", "smudged"):
         marks = [m for c, _, ms, _ in rows if c["variation"] == variation for m in ms.values()]
-        right = marks.count("✓")
-        print(f"  {variation:10} {right}/{len(marks)} ({right / len(marks):.0%})   "
-              f"wrong {marks.count('✗')}, null {marks.count('∅')}")
+        if not marks:
+            continue
+        right = marks.count("✓") + marks.count("⊘")
+        print(f"  {variation:10} {right}/{len(marks)} ({right / len(marks):.0%})   wrong {marks.count('✗')}, "
+              f"blank {marks.count('∅') + marks.count('⊘')}, read-anyway {marks.count('R')}")
     every = [m for _, _, ms, _ in rows for m in ms.values()]
-    print(f"  {'all':10} {every.count('✓')}/{len(every)} ({every.count('✓') / len(every):.0%})   "
-          f"wrong {every.count('✗')}, null {every.count('∅')}")
+    right = every.count("✓") + every.count("⊘")
+    print(f"  {'all':10} {right}/{len(every)} ({right / len(every):.0%})")
+    unread = [ms[f] for c, _, ms, _ in rows for f in c.get("expect_null", [])]
+    print(f"\nWrong vs blank:\n  readable fields:    wrong {sum(m == '✗' for c, _, ms, _ in rows for f, m in ms.items() if f not in c.get('expect_null', []))}, "
+          f"blank {every.count('∅')}"
+          f"\n  unreadable fields:  blank {unread.count('⊘')}/{len(unread)} (right), guessed {unread.count('✗')}, "
+          f"read anyway {unread.count('R')}")
 
-    misses = [(c, f, getattr(g, f), c[f]) for c, g, ms, _ in rows for f in FIELDS if ms[f] != "✓"]
+    misses = [(c, f, getattr(g, f), c[f]) for c, g, ms, _ in rows for f in FIELDS if ms[f] not in ("✓", "⊘")]
     print("\nNot right:" if misses else "\nEvery field right.")
     for card, field, got, want in misses:
         print(f"  {card['file']}: {field} read {got!r}, card says {want!r}")

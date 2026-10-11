@@ -9,7 +9,8 @@ llm.llm_mode). Never used by pytest, which has its own scripted fake.
            the answer cites them). Booking/changing gets the Appointments tab, no tool.
   summary  quotes the patient's last message
   vision   recognizes the sample cards in data/cards/ by their bytes and returns their
-           truth.json fields; any other image reads as all nulls
+           truth.json fields (null for each card's expect_null fields); any other image
+           reads as all nulls
 """
 
 import base64
@@ -53,7 +54,8 @@ def fake_card_reading(messages: list[BaseMessage]) -> str:
                   for part in m.content if isinstance(part, dict) and part.get("type") == "image_url"]
     raw = base64.b64decode(image_urls[0].split(",", 1)[1]) if image_urls else b""
     card = _cards_by_hash().get(hashlib.sha256(raw).hexdigest(), {})
-    return json.dumps({f: card.get(f) for f in CARD_FIELDS})
+    unreadable = card.get("expect_null", [])  # what a careful reader can't see on that card
+    return json.dumps({f: None if f in unreadable else card.get(f) for f in CARD_FIELDS})
 
 
 def _last_human(messages: list[BaseMessage]) -> str:

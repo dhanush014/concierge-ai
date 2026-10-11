@@ -1,5 +1,5 @@
 {
-  "about": "True field values of each sample card (fictional payers, data/payers.json). Made by scripts/make_cards.py; every card is marked SAMPLE.",
+  "about": "True field values of each sample card (fictional payers, data/payers.json). Made by scripts/make_cards.py; every card is marked SAMPLE. expect_null: fields made unreadable on purpose (cropped, glare, smudge); the right reading is null, not a guess.",
   "cards": [
     {
       "file": "aja.png",
@@ -10,7 +10,8 @@
       "member_name": "Aja Casper",
       "member_id": "RBH556706360",
       "group_number": "93771",
-      "in_network": true
+      "in_network": true,
+      "expect_null": []
     },
     {
       "file": "bart.png",
@@ -21,7 +22,8 @@
       "member_name": "Bart Brekke",
       "member_id": "LSA110147939",
       "group_number": "17696",
-      "in_network": true
+      "in_network": true,
+      "expect_null": []
     },
     {
       "file": "marissa.png",
@@ -32,7 +34,8 @@
       "member_name": "Marissa Dori",
       "member_id": "NSB215503225",
       "group_number": "10751",
-      "in_network": false
+      "in_network": false,
+      "expect_null": []
     },
     {
       "file": "aja-rotated.png",
@@ -43,7 +46,8 @@
       "member_name": "Aja Casper",
       "member_id": "RBH556706360",
       "group_number": "93771",
-      "in_network": true
+      "in_network": true,
+      "expect_null": []
     },
     {
       "file": "aja-lowres.jpg",
@@ -54,7 +58,8 @@
       "member_name": "Aja Casper",
       "member_id": "RBH556706360",
       "group_number": "93771",
-      "in_network": true
+      "in_network": true,
+      "expect_null": []
     },
     {
       "file": "bart-alt-layout.png",
@@ -65,7 +70,50 @@
       "member_name": "Bart Brekke",
       "member_id": "LSA110147939",
       "group_number": "17696",
-      "in_network": true
+      "in_network": true,
+      "expect_null": []
+    },
+    {
+      "file": "bart-cropped.png",
+      "patient": "Bart Brekke",
+      "variation": "cropped",
+      "payer": "Liberty Senior Advantage",
+      "plan_name": "Liberty Senior Advantage Plus",
+      "member_name": "Bart Brekke",
+      "member_id": "LSA110147939",
+      "group_number": "17696",
+      "in_network": true,
+      "expect_null": [
+        "member_id"
+      ]
+    },
+    {
+      "file": "marissa-glare.png",
+      "patient": "Marissa Dori",
+      "variation": "glare",
+      "payer": "Northstar Benefits",
+      "plan_name": "Northstar Essential EPO",
+      "member_name": "Marissa Dori",
+      "member_id": "NSB215503225",
+      "group_number": "10751",
+      "in_network": false,
+      "expect_null": [
+        "group_number"
+      ]
+    },
+    {
+      "file": "aja-smudged.png",
+      "patient": "Aja Casper",
+      "variation": "smudged",
+      "payer": "Riverbend Health",
+      "plan_name": "Riverbend Silver HMO",
+      "member_name": "Aja Casper",
+      "member_id": "RBH556706360",
+      "group_number": "93771",
+      "in_network": true,
+      "expect_null": [
+        "member_id"
+      ]
     }
   ]
 }

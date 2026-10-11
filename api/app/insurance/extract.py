@@ -1,7 +1,9 @@
 """Read an insurance card image with the vision model.
 
 Five fields, copied exactly as printed. A field the model can't read is null, never a
-guess; values like "unknown" are turned into null here too, so the form highlights them.
+guess. Code backs the prompt up: "unknown"-style values, partial reads with gap markers
+("RBH5...706360") and too-short member IDs ("LSA1") become null, so the form highlights
+them instead of showing something that looks filled in.
 """
 
 import base64
@@ -25,6 +27,9 @@ You read health insurance cards. Copy these fields exactly as printed on the car
 Rules:
 - If a field is missing, cut off or you cannot read it with certainty, use null. Never \
 guess, never fill in a likely value, never fix a value you think is a typo.
+- All or nothing: if even one character of a field is hidden, cut off, smudged or \
+unclear, the whole field is null. Never return part of a value, and never use "...", \
+"?" or "_" for characters you can't read.
 - Ignore watermarks such as "SAMPLE", phone numbers, copays and pharmacy codes (RxBIN, \
 RxPCN): they are not these fields.
 
@@ -33,19 +38,32 @@ Return JSON only: {"payer": ..., "plan_name": ..., "member_name": ..., "member_i
 """
 
 UNREADABLE = {"", "null", "none", "unknown", "n/a", "na", "unreadable", "illegible", "not visible", "-"}
+# A value with a gap marker is a partial read: "RBH5...706360", "LSA1??", "9_771".
+GAP = re.compile(r"\.\.\.|…|\?|_")
+MIN_MEMBER_ID = 6  # shorter is a cut-off read ("LSA1"), not an ID
 
 
 def clean(value: object) -> str | None:
     if value is None:
         return None
     text = " ".join(str(value).split())
-    return None if text.lower() in UNREADABLE else text
+    if text.lower() in UNREADABLE or GAP.search(text):
+        return None
+    return text
+
+
+def guard(fields: dict[str, str | None]) -> dict[str, str | None]:
+    """Plain-code checks on top of the prompt, so a partial read can't look filled in."""
+    member_id = fields.get("member_id")
+    if member_id and len(member_id.replace(" ", "")) < MIN_MEMBER_ID:
+        fields["member_id"] = None
+    return fields
 
 
 def parse(content: str) -> CardFields:
     match = re.search(r"\{.*\}", content, re.DOTALL)
     data = json.loads(match.group(0) if match else content)
-    return CardFields(**{field: clean(data.get(field)) for field in CardFields.model_fields})
+    return CardFields(**guard({field: clean(data.get(field)) for field in CardFields.model_fields}))
 
 
 def read_card(image: bytes, content_type: str) -> CardFields:

@@ -6,11 +6,15 @@ Writes data/cards/*.png|jpg and data/cards/truth.json (the true field values of 
 card). Payers are the fictional ones in data/payers.json. Every card says SAMPLE twice:
 a large diagonal watermark and a "not a real insurance card" banner. Deterministic:
 member IDs and group numbers come from a fixed seed, so reruns give the same cards.
+
+Three cards have one field made unreadable on purpose (truth.json lists it in
+expect_null): the member ID cut off at the edge, the group number under glare, and one
+member-ID digit smudged. The right answer for those fields is null, not a guess.
 """
 
 import json
 import random
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -48,13 +52,14 @@ ID_PREFIX = {"Riverbend Health": "RBH", "Liberty Senior Advantage": "LSA", "Nort
 class CardTruth:
     file: str
     patient: str
-    variation: str  # clean | rotated | lowres | alt-layout
+    variation: str  # clean | rotated | lowres | alt-layout | cropped | glare | smudged
     payer: str
     plan_name: str
     member_name: str
     member_id: str
     group_number: str
     in_network: bool
+    expect_null: list[str] = field(default_factory=list)  # unreadable on purpose: should come back null
 
 
 def font(size: int) -> ImageFont.FreeTypeFont:
@@ -80,15 +85,25 @@ def text(d: ImageDraw.ImageDraw, drawn: list[str], xy, s: str, size: int, fill="
     drawn.append(s)
 
 
-def classic(t: CardTruth, drawn: list[str]) -> Image.Image:
-    """Header bar with payer name; labeled fields below."""
+ID_RIGHT_X = 600  # where the cropped card prints its member ID
+
+
+def classic(t: CardTruth, drawn: list[str], id_right: bool = False) -> Image.Image:
+    """Header bar with payer name; labeled fields below. id_right: the member ID goes in the
+    right column instead (so a crop of the right edge can cut it off)."""
     card = Image.new("RGB", (W, H), (247, 248, 250))
     d = ImageDraw.Draw(card)
     d.rectangle([0, 0, W, 120], fill=COLORS[t.payer])
     text(d, drawn, (40, 30), t.payer, 52, "white")
     text(d, drawn, (40, 140), t.plan_name, 34, (40, 40, 40))
     rows = [("Member", t.member_name), ("Member ID", t.member_id), ("Group No.", t.group_number)]
+    if id_right:
+        rows = [rows[0], ("", ""), rows[2]]
+        text(d, drawn, (ID_RIGHT_X, 445), "MEMBER ID", 22, (110, 110, 110))
+        text(d, drawn, (ID_RIGHT_X, 471), t.member_id, 38)
     for i, (label, value) in enumerate(rows):
+        if not label:
+            continue
         text(d, drawn, (40, 215 + i * 78), label.upper(), 22, (110, 110, 110))
         text(d, drawn, (40, 241 + i * 78), value, 38)
     text(d, drawn, (560, 230), "RxBIN 610591", 24, (90, 90, 90))
@@ -124,6 +139,32 @@ def rotated(card: Image.Image, rng: random.Random) -> Image.Image:
     return bg
 
 
+def crop_member_id(card: Image.Image, member_id: str) -> Image.Image:
+    """A photo cut off at the right edge, through the member ID: only 4 characters show."""
+    keep = ID_RIGHT_X + int(font(38).getlength(member_id[:4]))
+    return card.crop((0, 0, keep, H))
+
+
+def glare(card: Image.Image) -> Image.Image:
+    """A blown-out white reflection over the group number (printed at x=40, y=397)."""
+    mask = Image.new("L", card.size, 0)
+    ImageDraw.Draw(mask).ellipse([-40, 374, 250, 466], fill=255)
+    mask = mask.filter(ImageFilter.GaussianBlur(12)).point(lambda v: min(255, int(v * 1.6)))  # blown out
+    return Image.composite(Image.new("RGB", card.size, (255, 255, 252)), card, mask)
+
+
+def smudge(card: Image.Image, member_id: str, index: int = 5) -> Image.Image:
+    """An ink smear over one digit of the member ID (printed at x=40, y=319, size 38)."""
+    f = font(38)
+    x0 = 40 + int(f.getlength(member_id[:index])) - 4
+    x1 = 40 + int(f.getlength(member_id[: index + 1])) + 4
+    box = (x0 - 10, 305, x1 + 10, 375)
+    region = card.crop(box)
+    ImageDraw.Draw(region).ellipse([6, 8, region.width - 6, region.height - 8], fill=(55, 55, 60))
+    card.paste(region.filter(ImageFilter.GaussianBlur(5)), box[:2])
+    return card
+
+
 def low_quality(card: Image.Image) -> Image.Image:
     small = card.resize((W * 2 // 5, H * 2 // 5), Image.BILINEAR)
     return small.filter(ImageFilter.GaussianBlur(0.8))
@@ -152,14 +193,28 @@ def make_cards(out_dir: Path = OUT_DIR) -> list[tuple[CardTruth, list[str]]]:
         ("aja", "clean", "aja.png"), ("bart", "clean", "bart.png"), ("marissa", "clean", "marissa.png"),
         ("aja", "rotated", "aja-rotated.png"), ("aja", "lowres", "aja-lowres.jpg"),
         ("bart", "alt-layout", "bart-alt-layout.png"),
+        # One field unreadable on purpose each: the right answer is null.
+        ("bart", "cropped", "bart-cropped.png"), ("marissa", "glare", "marissa-glare.png"),
+        ("aja", "smudged", "aja-smudged.png"),
     ]
+    unreadable = {"cropped": ["member_id"], "glare": ["group_number"], "smudged": ["member_id"]}
     results = []
     for key, variation, filename in plan:
-        truth = CardTruth(**{**asdict(base[key]), "variation": variation, "file": filename})
+        truth = CardTruth(**{**asdict(base[key]), "variation": variation, "file": filename,
+                             "expect_null": unreadable.get(variation, [])})
         drawn: list[str] = []
-        image = alt_layout(truth, drawn) if variation == "alt-layout" else classic(truth, drawn)
+        if variation == "alt-layout":
+            image = alt_layout(truth, drawn)
+        else:
+            image = classic(truth, drawn, id_right=variation == "cropped")
         if variation == "rotated":
             image = rotated(image, rng)
+        elif variation == "cropped":
+            image = crop_member_id(image, truth.member_id)
+        elif variation == "glare":
+            image = glare(image)
+        elif variation == "smudged":
+            image = smudge(image, truth.member_id)
         if variation == "lowres":
             low_quality(image).save(out_dir / filename, quality=30)
         else:
@@ -168,7 +223,8 @@ def make_cards(out_dir: Path = OUT_DIR) -> list[tuple[CardTruth, list[str]]]:
 
     (out_dir / "truth.json").write_text(json.dumps({
         "about": "True field values of each sample card (fictional payers, data/payers.json). "
-                 "Made by scripts/make_cards.py; every card is marked SAMPLE.",
+                 "Made by scripts/make_cards.py; every card is marked SAMPLE. expect_null: fields made "
+                 "unreadable on purpose (cropped, glare, smudge); the right reading is null, not a guess.",
         "cards": [asdict(t) for t, _ in results],
     }, indent=2) + "\n")
     return results

@@ -144,7 +144,9 @@ def test_every_card_is_written_and_described(cards) -> None:
     for c in truth:
         assert (out / c["file"]).exists()
         assert c["member_id"] and c["group_number"] and c["plan_name"]
-    assert {c["variation"] for c in truth} == {"clean", "rotated", "lowres", "alt-layout"}
+    assert {c["variation"] for c in truth} == {"clean", "rotated", "lowres", "alt-layout", "cropped", "glare", "smudged"}
+    assert {c["variation"]: c["expect_null"] for c in truth if c["expect_null"]} == {
+        "cropped": ["member_id"], "glare": ["group_number"], "smudged": ["member_id"]}
     assert {c["in_network"] for c in truth} == {True, False}  # an out-of-network card too
 
 

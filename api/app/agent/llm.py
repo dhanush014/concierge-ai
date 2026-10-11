@@ -30,6 +30,9 @@ TIMEOUTS: dict[Role, float] = {
 }
 
 
+MAX_TOKENS: dict[Role, int] = {"vision": 400}
+
+
 class FakeModeNotAllowed(RuntimeError):
     pass
 
@@ -66,4 +69,7 @@ def chat_model(role: Role) -> BaseChatModel:
         temperature=0,
         timeout=TIMEOUTS[role],
         max_retries=0,  # the callers have their own fallbacks; a retry would blow the time budget
+        # The card reply is a short JSON object; Groq's free tier rejects a request whose
+        # default output reservation is above the model's per-minute output cap.
+        max_tokens=MAX_TOKENS.get(role),
     )

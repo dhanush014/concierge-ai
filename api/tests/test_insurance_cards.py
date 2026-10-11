@@ -42,15 +42,15 @@ def extract(client: TestClient, card: dict, patient=None):
 
 def test_extract_saves_fields_as_extracted(client, db, card, fake_llm: FakeLLM) -> None:
     fake_llm.replies["vision"] = reading(payer="Riverbend Health", plan_name="Riverbend Silver HMO",
-                                         member_name="Test Patient0", member_id="RBH1", group_number="123")
+                                         member_name="Test Patient0", member_id="RBH100200300", group_number="123")
     resp = extract(client, card)
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert (body["status"], body["network"], body["matched_payer"], body["name_warning"]) == (
         "extracted", "in_network", "Riverbend Health", None)
-    assert body["document_id"] == card["doc"] and body["member_id"] == "RBH1"
+    assert body["document_id"] == card["doc"] and body["member_id"] == "RBH100200300"
     row = db.execute("select status, payer, member_id from public.patient_insurance where id = %s", (body["id"],)).fetchone()
-    assert (row["status"], row["payer"], row["member_id"]) == ("extracted", "Riverbend Health", "RBH1")
+    assert (row["status"], row["payer"], row["member_id"]) == ("extracted", "Riverbend Health", "RBH100200300")
     # The vision model got the image itself.
     image_part = fake_llm.prompts["vision"][0][1].content[1]
     assert image_part["image_url"]["url"].startswith("data:image/png;base64,")
@@ -161,3 +161,14 @@ def test_a_read_without_a_payer_is_kept_for_the_patient_to_fill_in(client, db, c
     assert (body["payer"], body["network"]) == (None, "not_on_file")
     with pytest.raises(psycopg.errors.CheckViolation):  # but a confirmed row must have a payer
         db.execute("update public.patient_insurance set status = 'confirmed' where id = %s", (body["id"],))
+
+
+@pytest.mark.parametrize(("member_id", "kept"), [
+    ("RBH556706360", True), ("RBH5...706360", False), ("RBH5…706360", False), ("RBH55?706360", False),
+    ("RBH5_706360", False), ("LSA1", False), ("LSA 1101", True),
+])
+def test_partial_reads_become_null(member_id, kept) -> None:
+    from app.insurance.extract import parse
+
+    got = parse(reading(payer="Riverbend Health", member_id=member_id)).member_id
+    assert (got == member_id) if kept else got is None
