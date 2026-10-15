@@ -14,7 +14,7 @@ import {
   type Conversation,
 } from "@/lib/chat";
 import { Composer } from "./composer";
-import { MessageList, withCitations, type ShownMessage } from "./message-list";
+import { MessageList, withoutCitations, type ShownMessage } from "./message-list";
 import { arrivals, empty, fromConversation, staffInChat, type Session } from "./session";
 import { useLiveConversation } from "./use-live-conversation";
 
@@ -172,7 +172,7 @@ export function ChatView() {
       if (reply) patchReply(() => ({ kind: done.kind ?? "text", pending: false, sources: done.sources, action: done.action }));
       else dropReply();
       setSession((s) => ({ ...s, status: done.status }));
-      const spoken = [withCitations(reply, done.sources), ...notices].filter(Boolean).join(" ") || "Sent. The nurse will see your message.";
+      const spoken = [withoutCitations(reply), ...notices].filter(Boolean).join(" ") || "Sent. The nurse will see your message.";
       setAnnounced(done.kind === "emergency" ? { polite: "", urgent: spoken } : { polite: reply ? `Assistant: ${spoken}` : spoken, urgent: "" });
       if (conversationId) adopt(conversationId);
       // A time was found: open the prefilled booking page; the patient confirms there.

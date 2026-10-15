@@ -20,21 +20,15 @@ export type ShownMessage = {
   pending?: boolean;
 };
 
-// [S-3f2a], [S-3f2a, S-91bc], or gpt-oss's own brackets 【S-3f2a】
-// A space before the tag goes with it; a line break stays.
-const CITATION = /[ \t]?[[【]([^\]】]*S-[0-9a-f]{4}[^\]】]*)[\]】]/g;
+// [S-3f2a], [S-3f2a, S-91bc], or gpt-oss's own brackets 【S-3f2a】, with the space before it.
+const CITATION = /[ \t]?[[【][^\]】]*S-[0-9a-f]{4}[^\]】]*[\]】]/g;
 
 /**
- * The answer cites sources as [S-3f2a]; show them as [1], [2] matching the list
- * under the reply. While streaming (sources not known yet), tags are hidden.
+ * The answer cites sources by tag ([S-3f2a]) so the server knows which ones it used.
+ * The tags aren't shown: the sources are listed under the reply.
  */
-export function withCitations(text: string, sources: SourceRef[] | null | undefined): string {
-  const number = new Map((sources ?? []).map((s, i) => [s.tag, i + 1]));
-  return text.replace(CITATION, (match: string, group: string, offset: number) => {
-    const nums = [...group.matchAll(/S-[0-9a-f]{4}/g)].map((m) => number.get(m[0])).filter((n) => n !== undefined);
-    const lineStart = offset === 0 || text[offset - 1] === "\n";
-    return nums.length ? `${lineStart ? "" : " "}[${[...new Set(nums)].join(", ")}]` : "";
-  });
+export function withoutCitations(text: string): string {
+  return text.replace(CITATION, "");
 }
 
 function sourceLabel(s: SourceRef): string {
@@ -46,11 +40,11 @@ function Sources({ sources }: { sources: SourceRef[] }) {
   return (
     <div className="mt-3 border-t border-line pt-2 text-sm">
       <p className="font-semibold text-muted">Sources</p>
-      <ol className="list-decimal pl-5 text-muted">
+      <ul className="list-disc pl-5 text-muted">
         {sources.map((s) => (
           <li key={s.tag}>{sourceLabel(s)}</li>
         ))}
-      </ol>
+      </ul>
     </div>
   );
 }
@@ -132,7 +126,7 @@ function Message({ message: m }: { message: ShownMessage }) {
   return (
     <div className={`${bubble} bg-accent-soft text-ink`} aria-busy={m.pending || undefined}>
       <span className="sr-only">Assistant: </span>
-      {withCitations(m.content, m.sources) || (m.pending ? <span className="text-muted">Thinking…</span> : null)}
+      {withoutCitations(m.content) || (m.pending ? <span className="text-muted">Thinking…</span> : null)}
       {!m.pending && m.action && (
         <Link
           href={m.action.href}

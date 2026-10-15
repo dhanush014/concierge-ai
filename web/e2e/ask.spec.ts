@@ -51,10 +51,10 @@ test("1. Suggestion asks about appointments; the answer streams in with real dat
   const reply = conversation(page).nth(1);
   await expect(reply).toContainText(world.doctorName);
   await expect(reply).toContainText("Here is what I found.");
-  // Cited sources under the reply, numbered; the raw [S-xxxx] tags are not shown.
+  // Cited sources under the reply; no citation marks in the text.
   await expect(reply.getByText("Sources", { exact: true })).toBeVisible();
   await expect(reply.getByRole("listitem").filter({ hasText: world.doctorName }).first()).toBeVisible();
-  await expect(reply).toContainText("[1]");
+  await expect(reply).not.toContainText("[1]");
   await expect(reply).not.toContainText("[S-");
   await expect(announcer(page)).toContainText(world.doctorName); // full reply, read once
   await expect(page.getByRole("button", { name: "When is my next appointment?" })).toHaveCount(0);
