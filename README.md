@@ -67,6 +67,22 @@ uv run --project api evals/run_coverage.py   # real Groq LLM: contract facts per
 
 `run_coverage.py` creates temporary patients with confirmed insurance and deletes them when
 it finishes.
+
+**LangSmith** (needs `LANGSMITH_API_KEY` in `.env`). Chat turns are traced to the `concierge`
+project with per-turn scores (escalated, tool calls, has sources, booking link). The same evals
+as LangSmith datasets and experiments, one suite at a time (Groq's free tier allows each model
+about 200k tokens a day):
+
+```bash
+uv run --project api evals/langsmith_evals.py safety
+```
+
+`coverage` and `answers` work the same way; `all --sync-only` uploads the datasets without
+running anything. Monitoring dashboard (re-run to rebuild it):
+
+```bash
+uv run --project api scripts/langsmith_dashboard.py
+```
 The first run downloads the model (~130 MB) if it isn't cached. Checkable policy facts for
 later tests: `evals/policy_facts.json`.
 
