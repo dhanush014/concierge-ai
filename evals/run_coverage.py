@@ -10,9 +10,8 @@ The 16 contract facts (contract_facts.json), each asked by a patient on that pay
   cited      the answer cites the fact's doc + section
   own plan   every contract source the tool returned and the answer cites is that
              payer's, and the answer names no other payer
-  disclaimer the answer ends with "This is an estimate. Confirm with your insurer."
 Edge cases: out of network (Northstar), not on file, no confirmed insurance: the answer
-says so, cites no contract and still ends with the disclaimer.
+says so and cites no contract.
 Cross-payer: "What is my specialist copay?" for three payers gives three different
 answers, each from its own plan. About 70 Groq calls.
 """
@@ -32,7 +31,7 @@ os.environ.setdefault("LANGSMITH_TRACING", "false")
 
 from langgraph.graph import START, StateGraph  # noqa: E402
 
-from app.agent.config import BILLING_PHONE, COVERAGE_DISCLAIMER  # noqa: E402
+from app.agent.config import BILLING_PHONE  # noqa: E402
 from app.agent.graph import ChatState, add_agent, turn_tool_messages  # noqa: E402
 from app.agent.llm import llm_mode  # noqa: E402
 from app.agent.record_tools import cited_sources  # noqa: E402
@@ -88,10 +87,6 @@ def own_plan(r: dict, payer: str) -> bool:
     return all(s["title"].startswith(payer) for s in contracts) and not any(contains(r["answer"], o) for o in others)
 
 
-def ends_with_disclaimer(answer: str) -> bool:
-    return normalize(answer).rstrip(" .\n").endswith(normalize(COVERAGE_DISCLAIMER).rstrip("."))
-
-
 def main() -> None:
     assert llm_mode() == "groq", "run_coverage.py needs the real LLM: unset LLM_FAKE"
     pool = open_pool()
@@ -114,9 +109,9 @@ def main() -> None:
                        "correct": r["safety"] == "ok" and all(contains(r["answer"], e) for e in f["expect"]),
                        "cited_right": any(s["kind"] == "contract" and s["title"].startswith(f["payer"])
                                           and s["section"] == f["section"] for s in r["cited"]),
-                       "own": own_plan(r, f["payer"]), "disclaimer": ends_with_disclaimer(r["answer"])}
+                       "own": own_plan(r, f["payer"])}
             facts.append(row)
-            marks = "".join("✓" if row[k] else "✗" for k in ("correct", "cited_right", "own", "disclaimer"))
+            marks = "".join("✓" if row[k] else "✗" for k in ("correct", "cited_right", "own"))
             print(f"{i:2}. {marks} {r['secs']:4.1f}s [{f['payer']}] {f['question']}  tools={r['tools']}")
             time.sleep(1)
 
@@ -127,10 +122,9 @@ def main() -> None:
             row = r | {"label": label, "question": q,
                        "correct": r["safety"] == "ok" and all(contains(r["answer"], e) for e in exp)
                        and "check_my_coverage" in r["tools"],
-                       "no_contract": not any(s["kind"] == "contract" for s in r["returned"] + r["cited"]),
-                       "disclaimer": ends_with_disclaimer(r["answer"])}
+                       "no_contract": not any(s["kind"] == "contract" for s in r["returned"] + r["cited"])}
             edges.append(row)
-            marks = "".join("✓" if row[k] else "✗" for k in ("correct", "no_contract", "disclaimer"))
+            marks = "".join("✓" if row[k] else "✗" for k in ("correct", "no_contract"))
             print(f"    {marks} {r['secs']:4.1f}s [{label}] {q}")
             time.sleep(1)
 
@@ -147,11 +141,9 @@ def main() -> None:
 
     n = len(facts)
     print("\nRESULTS")
-    for key, name in (("correct", "correct"), ("cited_right", "cites right section"), ("own", "own plan only"),
-                      ("disclaimer", "ends with disclaimer")):
+    for key, name in (("correct", "correct"), ("cited_right", "cites right section"), ("own", "own plan only")):
         print(f"  facts  {name:22} {sum(r[key] for r in facts)}/{n}")
-    for key, name in (("correct", "says so + next step"), ("no_contract", "cites no contract"),
-                      ("disclaimer", "ends with disclaimer")):
+    for key, name in (("correct", "says so + next step"), ("no_contract", "cites no contract")):
         print(f"  edges  {name:22} {sum(r[key] for r in edges)}/{len(edges)}")
     texts = {normalize(r["answer"]) for r in cross.values()}
     print(f"  cross  different answers       {len(texts)}/{len(CROSS)}   "
@@ -159,8 +151,8 @@ def main() -> None:
     every = facts + edges + list(cross.values())
     print(f"  avg {sum(r['secs'] for r in every) / len(every):.1f}s per question")
 
-    bad = [r for r in facts if not all(r[k] for k in ("correct", "cited_right", "own", "disclaimer"))]
-    bad += [r for r in edges if not all(r[k] for k in ("correct", "no_contract", "disclaimer"))]
+    bad = [r for r in facts if not all(r[k] for k in ("correct", "cited_right", "own"))]
+    bad += [r for r in edges if not all(r[k] for k in ("correct", "no_contract"))]
     print("\nNOT RIGHT:" if bad else "\nEverything right.")
     for r in bad:
         print(f"\n  [{r.get('payer') or r.get('label')}] {r['question']}  safety={r['safety']} tools={r['tools']}")

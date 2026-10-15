@@ -49,8 +49,9 @@ readable text, no decoration.
      match, never the LLM), answered with citations.
    After confirming, Documents shows "Ask about my coverage": it opens Ask with a
    suggested question in the box (not sent until the patient presses Send).
-6. A coverage answer always ends with: "This is an estimate. Confirm with your insurer."
-   Code adds it if the model leaves it out (any turn that called check_my_coverage).
+6. Answers state the plan's terms directly, with no per-answer disclaimer. The Ask box
+   carries one standing note: answers are written by AI, may contain mistakes, and
+   coverage and costs should be checked with the insurer.
    Coverage and copay questions are administrative for the safety check; advice framed
    around insurance ("should I skip the MRI since it isn't covered") is clinical.
 

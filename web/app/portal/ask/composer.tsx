@@ -64,6 +64,9 @@ export function Composer({ value, onChange, onSend, streaming, inputRef }: Props
         </a>
         .
       </p>
+      <p className="mt-1 text-sm text-muted">
+        Answers are written by AI and may contain mistakes. For coverage and costs, check with your insurer.
+      </p>
     </form>
   );
 }

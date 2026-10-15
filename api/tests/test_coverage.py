@@ -1,4 +1,4 @@
-"""Coverage answers: check_my_coverage and the disclaimer. Fake LLM and embedder; the
+"""Coverage answers: check_my_coverage. Fake LLM and embedder; the
 contract chunks are the real ones from data/contracts/ (scripts/ingest.py)."""
 
 import json
@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from app.agent import config
 from app.agent import record_tools as rt
-from app.agent.graph import turn_input, with_disclaimer
+from app.agent.graph import turn_input
 from app.rag import embed, rerank
 from tests.conftest import Factory, as_patient
 from tests.fake_llm import FakeLLM, call
@@ -72,14 +72,7 @@ def test_latest_confirmed_insurance_wins(db, patient) -> None:
     assert "IN NETWORK" in rt.coverage(db, patient, "copay").header
 
 
-# --- the disclaimer ---
-
-def test_disclaimer_added_once() -> None:
-    assert with_disclaimer("Your copay is $50.").endswith(f"$50.\n\n{config.COVERAGE_DISCLAIMER}")
-    already = f"Your copay is $50. {config.COVERAGE_DISCLAIMER}"
-    assert with_disclaimer(already) == already
-    assert with_disclaimer(already.lower().rstrip(".")) == already.lower().rstrip(".")
-
+# --- in the chat ---
 
 @pytest.fixture
 def graph(client: TestClient):
@@ -93,20 +86,14 @@ def thread(db, patient):
     db.execute("delete from public.conversations where id = %s", (convo,))
 
 
-def test_coverage_answers_always_end_with_the_disclaimer(graph, thread, db, patient, fake_llm: FakeLLM) -> None:
+def test_coverage_answer_is_saved_as_written(graph, thread, db, patient, fake_llm: FakeLLM) -> None:
     insure(db, patient, "Riverbend Health")
     fake_llm.agent_script = [call("check_my_coverage", question="specialist copay"), AIMessage("Your specialist copay is $50.")]
     state = graph.invoke(turn_input(patient, "what is my specialist copay"), thread)
-    assert state["messages"][-1].content == f"Your specialist copay is $50.\n\n{config.COVERAGE_DISCLAIMER}"
+    assert state["messages"][-1].content == "Your specialist copay is $50."  # no disclaimer added
 
 
-def test_other_answers_get_no_disclaimer(graph, thread, patient, fake_llm: FakeLLM) -> None:
-    fake_llm.agent_script = [call("get_my_documents"), AIMessage("You have no documents.")]
-    state = graph.invoke(turn_input(patient, "my documents"), thread)
-    assert state["messages"][-1].content == "You have no documents."
-
-
-def test_patient_sees_the_disclaimer_and_contract_sources(
+def test_patient_sees_the_contract_sources(
     client: TestClient, db, patient, fake_llm: FakeLLM, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(rerank, "score", lambda q, texts: [1.0 if "> Copays" in t else 0.0 for t in texts])
@@ -116,14 +103,10 @@ def test_patient_sees_the_disclaimer_and_contract_sources(
                              AIMessage(f"Your specialist copay is $50 [{tag}].")]
     resp = client.post("/me/chat", json={"message": "what is my specialist copay"}, headers=as_patient(patient))
     events = [json.loads(line[6:]) for line in resp.text.splitlines() if line.startswith("data: ")]
-    streamed = "".join(e["text"] for e in events if e["type"] == "token")
-    assert streamed.endswith(config.COVERAGE_DISCLAIMER)  # streamed too, not only saved
     done = events[-1]
     assert done["tools"] == ["check_my_coverage"]
     assert done["sources"] == [{"tag": tag, "kind": "contract", "title": "Riverbend Health — Riverbend Silver HMO",
                                 "section": "Copays", "date": None}]
-    convo = client.get(f"/me/conversations/{events[0]['id']}", headers=as_patient(patient)).json()
-    assert convo["messages"][-1]["content"].endswith(config.COVERAGE_DISCLAIMER)
 
 
 def test_tool_schema_hides_the_patient_id() -> None:

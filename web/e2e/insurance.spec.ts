@@ -57,7 +57,7 @@ test("1. Read Aja's card: fields filled in, in network, confirm saves it", async
   await expect(summary(page)).toContainText("RBH556706360");
 });
 
-test("2. Ask about my coverage: question prefilled, answer cites her plan and ends with the disclaimer", async ({ page }) => {
+test("2. Ask about my coverage: question prefilled, answer cites her plan", async ({ page }) => {
   await openDocuments(page);
   await summary(page).getByRole("link", { name: "Ask about my coverage" }).click();
 
@@ -68,8 +68,10 @@ test("2. Ask about my coverage: question prefilled, answer cites her plan and en
 
   const reply = page.getByRole("list", { name: "Conversation" }).locator(":scope > li").last();
   // A cold API server is still loading the embedding and reranking models.
-  await expect(reply).toContainText("This is an estimate. Confirm with your insurer.", { timeout: 25_000 });
-  await expect(reply.getByRole("listitem").first()).toContainText("Riverbend Health — Riverbend Silver HMO ›");
+  await expect(reply.getByRole("listitem").first()).toContainText("Riverbend Health — Riverbend Silver HMO ›", {
+    timeout: 25_000,
+  });
+  await expect(reply).not.toContainText("Confirm with your insurer"); // no per-answer disclaimer
   await expect(reply).not.toContainText("Liberty"); // only her payer's plan
   await expect(box).toHaveValue("");
 });

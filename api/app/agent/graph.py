@@ -30,7 +30,7 @@ from psycopg_pool import ConnectionPool
 
 from app import handoffs
 from app.agent import config, llm, safety
-from app.agent.config import COVERAGE_DISCLAIMER, MAX_TOOL_CALLS, NURSE_NOTIFIED_NOTICE
+from app.agent.config import MAX_TOOL_CALLS, NURSE_NOTIFIED_NOTICE
 from app.agent.prompts import AGENT_PROMPT, SUMMARY_PROMPT
 from app.agent.toolkit import make_tools
 
@@ -129,15 +129,6 @@ def wait_for_staff(state: ChatState) -> ChatState:
     return {"messages": [*said, AIMessage(config.ASSISTANT_BACK_NOTICE)]}
 
 
-def with_disclaimer(answer: str) -> str:
-    """Coverage answers always end with the disclaimer, in code: the prompt asks for it,
-    this makes sure. Not added twice."""
-    squash = lambda s: " ".join(s.lower().split()).rstrip(".")  # noqa: E731
-    if squash(answer).endswith(squash(COVERAGE_DISCLAIMER)):
-        return answer
-    return f"{answer.rstrip()}\n\n{COVERAGE_DISCLAIMER}"
-
-
 def make_agent_node(tools: list[BaseTool]):
     def agent(state: ChatState) -> ChatState:
         """One LLM step: call tools, or answer. Out of tool budget -> no tools offered."""
@@ -149,9 +140,6 @@ def make_agent_node(tools: list[BaseTool]):
         reply = model.invoke([SystemMessage(AGENT_PROMPT), *earlier, *turn])
         if isinstance(reply, AIMessage) and len(reply.tool_calls) > remaining:
             reply.tool_calls = reply.tool_calls[: max(remaining, 0)]  # never exceed the budget
-        used_coverage = any(isinstance(m, ToolMessage) and m.name == "check_my_coverage" for m in turn)
-        if used_coverage and isinstance(reply, AIMessage) and not reply.tool_calls:
-            reply.content = with_disclaimer(str(reply.content))
         return {"messages": [reply]}
 
     return agent

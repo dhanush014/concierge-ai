@@ -40,8 +40,6 @@ NURSE_REPLY = (
     "Connecting you to a nurse. They'll reply here as soon as they can. "
     "If it gets worse or feels urgent, call 911."
 )
-# Every answer that used the coverage tool ends with this (added in code if missing).
-COVERAGE_DISCLAIMER = "This is an estimate. Confirm with your insurer."
 BILLING_PHONE = "555-0142"
 
 # Notices: short system lines in the chat (messages.kind = 'notice').
