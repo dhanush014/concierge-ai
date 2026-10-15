@@ -31,7 +31,7 @@ from fastapi.responses import StreamingResponse
 from langgraph.graph.state import CompiledStateGraph
 from psycopg_pool import ConnectionPool
 
-from app import handoffs
+from app import handoffs, tracing
 from app.agent import booking
 from app.agent import config as agent_config
 from app.agent.graph import turn_input, turn_tool_messages
@@ -77,7 +77,14 @@ def run_turn(
     """
     yield sse({"type": "conversation", "id": str(conversation_id)})
     trace_id = str(uuid.uuid4())  # becomes the LangSmith run id of this turn
-    config = {"configurable": {"thread_id": str(conversation_id)}, "run_id": trace_id}
+    config = {
+        "configurable": {"thread_id": str(conversation_id)},
+        "run_id": trace_id,
+        "run_name": "chat turn",  # how the turn is listed in LangSmith
+        "tags": ["patient-chat"],
+        "metadata": {"conversation_id": str(conversation_id), "agent_model": agent_config.AGENT_MODEL,
+                     "safety_model": agent_config.SAFETY_MODEL},
+    }
     kind = "text"
     category = "ok"
 
@@ -119,6 +126,7 @@ def run_turn(
             sources = cited_sources(answer, [m.artifact for m in tool_messages if m.name != booking.TOOL_NAME])
             action = booking.action_for(tool_messages)
             save(answer, "text", sources, action)
+        tracing.record_turn(trace_id, values["safety"], [m.name for m in tool_messages], len(sources), bool(action))
         yield sse({"type": "done", "safety": values["safety"], "tools": [m.name for m in tool_messages],
                    "kind": kind, "status": status, "sources": sources, "action": action})
     except Exception:

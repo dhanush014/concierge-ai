@@ -1,12 +1,15 @@
-"""Links to LangSmith traces, for the staff inbox's "View trace".
+"""LangSmith: trace links for the staff inbox, and per-turn scores for monitoring.
 
 Each chat turn runs with run_id = trace_id (see routes/chat.py), so a handoff's
-trace_id is the root run of the turn that started it. No LangSmith key configured
-(or LangSmith unreachable) means no link, never an error.
+trace_id is the root run of the turn that started it. After a turn, record_turn
+attaches scores to that trace (escalated, tool calls, has sources, booking link); the
+dashboard (scripts/langsmith_dashboard.py) charts them. No LangSmith key configured
+(or LangSmith unreachable) means no link and no scores, never an error.
 """
 
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 
 from app.db import load_env
@@ -42,3 +45,49 @@ def trace_url(trace_id: str | None) -> str | None:
     except Exception as exc:  # noqa: BLE001 - a missing link must not break the inbox
         log.warning("No LangSmith URL for trace %s (%s)", trace_id, type(exc).__name__)
         return None
+
+
+# Scores go out on a background thread: a chat reply never waits on LangSmith.
+_sender = ThreadPoolExecutor(max_workers=1, thread_name_prefix="langsmith-feedback")
+
+# Tools whose lines an answer cites (find_open_times returns a booking, not facts). An
+# answer can rightly have none (not found, out of network): has_sources is a trend, not a pass/fail.
+CITABLE_TOOLS = {"get_my_appointments", "get_my_documents", "get_lab_results", "list_my_records",
+                 "search_my_records", "search_hospital_policies", "check_my_coverage"}
+
+
+def turn_scores(safety: str, tools: list[str], sources: int, booked: bool) -> dict[str, tuple[float, str | None]]:
+    """key -> (score, value) for one chat turn. Plain data, so it is easy to test."""
+    scores: dict[str, tuple[float, str | None]] = {
+        "escalated": (float(safety != "ok"), safety),
+        "tool_calls": (float(len(tools)), None),
+    }
+    if safety == "ok" and CITABLE_TOOLS & set(tools):
+        scores["has_sources"] = (float(sources > 0), None)
+    if "find_open_times" in tools:
+        scores["booking_link"] = (float(booked), None)
+    return scores
+
+
+def record_turn(trace_id: str, safety: str, tools: list[str], sources: int, booked: bool) -> None:
+    if not tracing_configured():
+        return
+    scores = turn_scores(safety, tools, sources, booked)
+    _sender.submit(_send, trace_id, scores)
+
+
+def _send(trace_id: str, scores: dict[str, tuple[float, str | None]]) -> None:
+    try:
+        client = _client()
+        for key, (score, value) in scores.items():
+            client.create_feedback(run_id=trace_id, trace_id=trace_id, key=key, score=score, value=value,
+                                   feedback_source_type="model")
+    except Exception as exc:  # noqa: BLE001 - monitoring must never break chat
+        log.warning("LangSmith scores for trace %s not sent (%s)", trace_id, type(exc).__name__)
+
+
+@lru_cache(maxsize=1)
+def _client():
+    from langsmith import Client
+
+    return Client()
