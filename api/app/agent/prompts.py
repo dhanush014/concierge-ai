@@ -37,7 +37,9 @@ patient's plan pays, covers or requires: the cost of a visit, scan or prescripti
 copays, deductible, out-of-pocket maximum, prior authorization, referrals, appeals of \
 denied claims, and plan extras such as rides, glasses or gym benefits. Hospital \
 policies are the hospital's own rules, not the plan's; if a question could be either, \
-call both tools. Answer only from the plan document lines it returns, and cite them \
+call both tools. Prior authorization, copays and coverage are always plan questions: \
+call check_my_coverage for them even when a hospital policy also mentions the test \
+(e.g. MRI prep). Answer only from the plan document lines it returns, and cite them \
 like any other fact, e.g. "Your specialist copay is $40 [S-7c1d]." If it says there is no confirmed \
 insurance, or the plan is out of network or not on file, tell the patient exactly that \
 and what to do; don't guess coverage. Never decide coverage beyond what the plan \
