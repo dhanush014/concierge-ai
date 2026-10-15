@@ -4,7 +4,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { StatusMessage, type Status } from "@/components/status-message";
 import { isRetryable, isStatus } from "@/lib/api";
-import { getConversation, getLatestConversation, MAX_MESSAGE_CHARS, messageFor, streamChat, type Conversation } from "@/lib/chat";
+import {
+  getConversation,
+  getLatestConversation,
+  leaveHandoff,
+  MAX_MESSAGE_CHARS,
+  messageFor,
+  streamChat,
+  type Conversation,
+} from "@/lib/chat";
 import { Composer } from "./composer";
 import { MessageList, withCitations, type ShownMessage } from "./message-list";
 import { arrivals, empty, fromConversation, staffInChat, type Session } from "./session";
@@ -37,6 +45,7 @@ export function ChatView() {
     if (ask) setInput(ask.slice(0, MAX_MESSAGE_CHARS));
   }
   const [streaming, setStreaming] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [announced, setAnnounced] = useState({ polite: "", urgent: "" });
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
@@ -186,6 +195,28 @@ export function ChatView() {
     }
   }
 
+  // End the nurse chat (a nurse may never have come, or has gone): the assistant is back.
+  async function leaveNurseChat() {
+    const id = session.conversationId;
+    if (!id || leaving) return;
+    setStatus(null);
+    setLeaving(true);
+    try {
+      const convo = await leaveHandoff(id).catch((error: unknown) => {
+        if (isStatus(error, 409)) return getConversation(id); // already ended by the nurse
+        throw error;
+      });
+      setSession((s) => ({ ...fromConversation(convo), key: s.key }));
+      setAnnounced({ polite: "You left the nurse chat. The assistant is back.", urgent: "" });
+      inputRef.current?.focus();
+    } catch (error) {
+      if (isStatus(error, 401)) return router.replace("/login");
+      setStatus({ kind: "error", text: messageFor(error), onRetry: isRetryable(error) ? leaveNurseChat : undefined });
+    } finally {
+      setLeaving(false);
+    }
+  }
+
   function navigate(key: string, how: "push" | "replace") {
     setNavTo(key);
     router[how](`${BASE}?c=${key}`);
@@ -268,9 +299,19 @@ export function ChatView() {
       )}
 
       {session.status === "handoff" && (
-        <p className="mb-4 rounded-md border-l-4 border-warn bg-warn-soft px-4 py-3 font-medium text-warn">
-          {nurse ? `You're chatting with ${nurse}.` : "Connecting you to a nurse… They'll see your messages here."}
-        </p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border-l-4 border-warn bg-warn-soft px-4 py-3">
+          <p className="font-medium text-warn">
+            {nurse ? `You're chatting with ${nurse}.` : "Connecting you to a nurse… They'll see your messages here."}
+          </p>
+          <button
+            type="button"
+            onClick={leaveNurseChat}
+            disabled={streaming || leaving}
+            className="min-h-11 rounded-md border border-warn px-4 font-semibold text-warn hover:bg-white disabled:opacity-50"
+          >
+            Back to the assistant
+          </button>
+        </div>
       )}
 
       <Composer value={input} onChange={setInput} onSend={() => send(input)} streaming={streaming} inputRef={inputRef} />

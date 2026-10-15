@@ -2,14 +2,18 @@
 staff routes. Plain SQL. The one-live-handoff rule is a database index.
 """
 
-from typing import Literal
+import logging
+from typing import Any, Literal
 from uuid import UUID
 
 import psycopg
+from langgraph.types import Command
 from psycopg.types.json import Jsonb
 
 Sender = Literal["patient", "assistant", "staff"]
 Kind = Literal["text", "emergency", "handoff", "notice"]
+log = logging.getLogger(__name__)
+
 Reason = Literal["emergency", "clinical", "wants_human"]
 
 HANDOFF_COLUMNS = "id, conversation_id, reason, summary, status, staff_id, trace_id, created_at, closed_at"
@@ -76,3 +80,18 @@ def transcript_since(conn: psycopg.Connection, handoff: dict) -> list[dict]:
         " order by m.created_at, m.id",
         (handoff["conversation_id"], handoff["created_at"]),
     ).fetchall()
+
+
+def end_handoff(graph: Any, conn: psycopg.Connection, handoff: dict, notice: str) -> None:
+    """Close the ticket, hand the chat back to the assistant and resume the paused graph
+    with what was said, so later answers have the context. Staff close it, or the
+    patient leaves it."""
+    thread = {"configurable": {"thread_id": str(handoff["conversation_id"])}}
+    if graph.get_state(thread).next:  # paused at wait_for_staff
+        # Before the commit: if resuming fails, the close rolls back and can be retried.
+        graph.invoke(Command(resume=transcript_since(conn, handoff)), thread)
+    else:
+        log.warning("Handoff %s closed but its graph was not paused", handoff["id"])
+    conn.execute("update public.handoffs set status = 'closed', closed_at = now() where id = %s", (handoff["id"],))
+    conn.execute("update public.conversations set status = 'bot' where id = %s", (handoff["conversation_id"],))
+    save_message(conn, handoff["conversation_id"], "assistant", notice, "notice")

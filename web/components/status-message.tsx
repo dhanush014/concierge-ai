@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type Status = {
   kind: "success" | "error";
@@ -8,6 +8,8 @@ export type Status = {
   /** Shown as a Retry button (500s and network failures). */
   onRetry?: () => void;
 } | null;
+
+const SUCCESS_SECONDS = 6; // a success note fades away; errors stay until dealt with
 
 /**
  * One live region per screen. Screen readers announce changes; when `focus` is set
@@ -25,6 +27,15 @@ export function StatusMessage({ status, focus = false }: { status: Status; focus
     return () => clearTimeout(id);
   }, [focus, text]);
 
+  // Hide a success note after a few seconds (keyed on the object: each action makes a new one).
+  const [expired, setExpired] = useState<Status>(null);
+  useEffect(() => {
+    if (status?.kind !== "success") return;
+    const id = setTimeout(() => setExpired(status), SUCCESS_SECONDS * 1000);
+    return () => clearTimeout(id);
+  }, [status]);
+  const shown = status === expired ? null : status;
+
   const tone =
     status?.kind === "error"
       ? "border-danger bg-red-50 text-danger"
@@ -32,13 +43,13 @@ export function StatusMessage({ status, focus = false }: { status: Status; focus
 
   return (
     <div ref={ref} tabIndex={-1} role="status" aria-live="polite" className="outline-none">
-      {status && (
+      {shown && (
         <div className={`mb-6 flex flex-wrap items-center gap-4 rounded-md border-l-4 px-4 py-3 ${tone}`}>
-          <p className="font-medium">{status.text}</p>
-          {status.onRetry && (
+          <p className="font-medium">{shown.text}</p>
+          {shown.onRetry && (
             <button
               type="button"
-              onClick={status.onRetry}
+              onClick={shown.onRetry}
               className="min-h-11 rounded-md border border-current px-4 font-medium"
             >
               Retry

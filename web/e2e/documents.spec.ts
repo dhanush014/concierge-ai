@@ -81,6 +81,7 @@ test("delete through the confirm dialog", async ({ page }) => {
   await remove.click();
   await dialog.getByRole("button", { name: "Delete document" }).click();
   await expect(page.getByRole("status")).toHaveText("Document deleted.");
+  await expect(page.getByRole("status")).toHaveText("", { timeout: 10_000 }); // success notes fade away
   await expect(row(page, "e2e-card.png")).toHaveCount(0);
   await expect(row(page, "e2e-referral.pdf")).toHaveCount(1);
 });

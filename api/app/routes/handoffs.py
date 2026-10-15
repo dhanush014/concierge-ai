@@ -1,4 +1,5 @@
 """Staff inbox: list handoffs, read one, join, reply, close (which resumes the agent).
+The patient can also leave a handoff themselves (routes/chat.py).
 
 Staff token only. Joining is first come, first served: an active handoff belongs to
 the staff member who joined it, and only they can reply or close.
@@ -10,7 +11,6 @@ from uuid import UUID
 
 import psycopg
 from fastapi import APIRouter, Depends, HTTPException, Request
-from langgraph.types import Command
 
 from app import handoffs, tracing
 from app.agent import config as agent_config
@@ -112,23 +112,8 @@ def send_message(conn: Conn, staff: Staff, handoff_id: UUID, body: StaffMessageR
 
 @router.post("/{handoff_id}/close")
 def close(request: Request, conn: Conn, staff: Staff, handoff_id: UUID) -> Handoff:
-    """Close the ticket, hand the chat back to the assistant and resume the paused graph
-    with what was said, so later answers have the context."""
+    """Close the ticket and hand the chat back to the assistant (see handoffs.end_handoff)."""
     row = fetch(conn, handoff_id, lock=True)
     require_mine(row, staff)
-    transcript = handoffs.transcript_since(conn, row)
-
-    graph = request.app.state.chat_graph
-    thread = {"configurable": {"thread_id": str(row["conversation_id"])}}
-    if graph.get_state(thread).next:  # paused at wait_for_staff
-        # Before the commit: if resuming fails, the close rolls back and can be retried.
-        graph.invoke(Command(resume=transcript), thread)
-    else:
-        log.warning("Handoff %s closed but its graph was not paused", handoff_id)
-
-    conn.execute(
-        "update public.handoffs set status = 'closed', closed_at = now() where id = %s", (handoff_id,)
-    )
-    conn.execute("update public.conversations set status = 'bot' where id = %s", (row["conversation_id"],))
-    handoffs.save_message(conn, row["conversation_id"], "assistant", agent_config.ASSISTANT_BACK_NOTICE, "notice")
+    handoffs.end_handoff(request.app.state.chat_graph, conn, row, agent_config.ASSISTANT_BACK_NOTICE)
     return Handoff(**fetch(conn, handoff_id))

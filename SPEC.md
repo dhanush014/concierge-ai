@@ -77,6 +77,8 @@ message -> safety check -> agent (LLM + read-only tools, max 4 calls) -> answer 
 - Staff inbox shows the ticket live (Supabase Realtime). Staff clicks Join, messages
   appear in the patient's chat labeled with the staff name. Agent stays silent.
 - Staff clicks Close: agent resumes, transcript saved.
+- The patient can press "Back to the assistant" at any time (a nurse may never have
+  joined, or has gone): the ticket closes the same way, with a notice in the chat.
 
 ## Stack
 - Frontend: Next.js (App Router, TypeScript, Tailwind)

@@ -46,5 +46,7 @@ BILLING_PHONE = "555-0142"
 
 # Notices: short system lines in the chat (messages.kind = 'notice').
 NURSE_NOTIFIED_NOTICE = "A nurse has been notified and will join this chat."
-ASSISTANT_BACK_NOTICE = "The assistant is back. Ask me about your records, appointments or hospital policies."
+ASSISTANT_BACK_NOTICE = ("The assistant is back. Ask me about your records, appointments, insurance "
+                         "or hospital policies.")
+PATIENT_LEFT_NOTICE = "You left the nurse chat. " + ASSISTANT_BACK_NOTICE
 STAFF_JOINED_NOTICE = "{name} joined the chat."

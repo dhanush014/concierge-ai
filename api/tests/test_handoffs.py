@@ -222,3 +222,32 @@ def test_a_new_handoff_after_close(client: TestClient, db, ticket: dict) -> None
     staff_post(client, ticket, "close")
     say(client, ticket["aja"], "can I talk to a real person", ticket["conversation_id"])
     assert [r["status"] for r in handoff_rows(db, ticket["conversation_id"])] == ["closed", "open"]
+
+
+# --- the patient leaves the handoff ---
+
+def leave(client: TestClient, patient, conversation_id):
+    return client.post(f"/me/conversations/{conversation_id}/leave-handoff", headers=as_patient(patient))
+
+
+@pytest.mark.parametrize("joined", [False, True])
+def test_patient_can_leave_and_the_assistant_is_back(client: TestClient, db, ticket: dict, fake_llm: FakeLLM, joined: bool) -> None:
+    if joined:
+        staff_post(client, ticket, "join")
+    cid = ticket["conversation_id"]
+    resp = leave(client, ticket["aja"], cid)
+    assert resp.status_code == 200 and resp.json()["status"] == "bot"
+    assert resp.json()["messages"][-1]["content"] == config.PATIENT_LEFT_NOTICE
+    assert [r["status"] for r in handoff_rows(db, cid)] == ["closed"]
+    assert not paused(client, cid)
+    assert staff_post(client, ticket, "messages", content="hello?").json()["detail"] == "handoff_closed"
+
+    fake_llm.agent_script = [call("get_my_appointments"), AIMessage("Here you go.")]
+    assert say(client, ticket["aja"], "when is my next visit", cid)[-1]["tools"] == ["get_my_appointments"]
+
+
+def test_leave_needs_a_live_handoff_in_your_own_conversation(client: TestClient, ticket: dict, make: Factory) -> None:
+    cid = ticket["conversation_id"]
+    assert leave(client, make.patient(), cid).status_code == 404  # not yours
+    assert leave(client, ticket["aja"], cid).status_code == 200
+    assert leave(client, ticket["aja"], cid).json()["detail"] == "no_handoff"

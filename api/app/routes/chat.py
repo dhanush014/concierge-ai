@@ -13,7 +13,8 @@ Stream events (each `data: <json>`):
 
 While a conversation is in handoff the agent stays silent: the patient's message is
 saved and staff see it live. One exception: an emergency (regex rules, no LLM) still
-gets the 911 message at once, and the ticket is flagged as an emergency.
+gets the 911 message at once, and the ticket is flagged as an emergency. The patient
+can leave the handoff (POST /me/conversations/{id}/leave-handoff): the assistant is back.
 """
 
 import json
@@ -180,3 +181,18 @@ def latest_conversation(conn: Conn, patient_id: PatientId) -> Conversation | Non
 @router.get("/conversations/{conversation_id}")
 def get_conversation(conn: Conn, patient_id: PatientId, conversation_id: UUID) -> Conversation:
     return with_messages(conn, owned_conversation(conn, conversation_id, patient_id))
+
+
+@router.post("/conversations/{conversation_id}/leave-handoff")
+def leave_handoff(request: Request, conn: Conn, patient_id: PatientId, conversation_id: UUID) -> Conversation:
+    """End the nurse chat from the patient's side (a nurse may never have come, or left)."""
+    convo = owned_conversation(conn, conversation_id, patient_id)
+    handoff = conn.execute(
+        f"select {handoffs.HANDOFF_COLUMNS} from public.handoffs"
+        " where conversation_id = %s and status in ('open', 'active') for update",
+        (conversation_id,),
+    ).fetchone()
+    if handoff is None:
+        raise HTTPException(status_code=409, detail="no_handoff")
+    handoffs.end_handoff(request.app.state.chat_graph, conn, handoff, agent_config.PATIENT_LEFT_NOTICE)
+    return with_messages(conn, owned_conversation(conn, convo["id"], patient_id))

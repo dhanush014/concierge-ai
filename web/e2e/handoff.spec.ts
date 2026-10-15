@@ -80,3 +80,19 @@ test("Aja asks for a person, Nurse Kim joins, replies and closes; the assistant 
   await kim.getByRole("link", { name: "Back to inbox" }).click();
   await expect(kim.locator("section[aria-labelledby=closed-heading]").getByRole("link").filter({ hasText: tag })).toBeVisible();
 });
+
+test("Aja leaves a nurse chat nobody joined: the assistant answers again", async ({ browser }) => {
+  const aja = await (await browser.newContext()).newPage();
+  await loginAs(aja, AJA);
+  await aja.goto("/portal/ask?c=new");
+
+  await ajaSays(aja, `can I talk to a person (${tag}-left)`);
+  await expect(aja.getByText("Connecting you to a nurse… They'll see your messages here.")).toBeVisible();
+
+  await aja.getByRole("button", { name: "Back to the assistant" }).click();
+  await expect(conversation(aja)).toContainText("You left the nurse chat. The assistant is back.");
+  await expect(aja.getByRole("button", { name: "Back to the assistant" })).toHaveCount(0);
+
+  await ajaSays(aja, "what documents have I uploaded");
+  await expect(conversation(aja).locator(":scope > li").last()).toContainText("Here is what I found.");
+});

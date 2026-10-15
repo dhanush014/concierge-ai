@@ -109,6 +109,11 @@ export async function streamChat(conversationId: string | null, message: string,
   throw new ChatStreamError(); // stream ended without "done"
 }
 
+/** End the nurse chat from the patient's side; the assistant answers again. */
+export function leaveHandoff(id: string): Promise<Conversation> {
+  return apiFetch<Conversation>(`/me/conversations/${encodeURIComponent(id)}/leave-handoff`, { method: "POST" });
+}
+
 export function messageFor(error: unknown): string {
   if (error instanceof ChatStreamError) return "Sorry, I couldn't answer that. Please try again.";
   if (error instanceof ApiError && error.status === 404) return "That conversation isn't available.";
