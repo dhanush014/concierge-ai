@@ -96,3 +96,9 @@ def test_fake_agent_calls_then_answers_with_the_tool_lines() -> None:
 def test_fake_agent_points_booking_to_the_appointments_tab() -> None:
     assert FakeChatModel(role="agent").invoke([HumanMessage("please book me in")]).content == BOOKING_QUESTION
     assert FakeChatModel(role="agent").invoke([HumanMessage("cancel my visit")]).content == APPOINTMENTS_TAB
+
+
+def test_agent_retries_rate_limits_and_the_safety_check_does_not(env) -> None:
+    env(LLM_FAKE=None, APP_ENV=None, GROQ_API_KEY="gsk_test_not_a_real_key")
+    assert real_chat_model("agent").max_retries == 3  # waits the seconds Groq's 429 asks for
+    assert real_chat_model("safety").max_retries == 0  # 3-second budget, regex fallback

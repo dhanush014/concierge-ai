@@ -21,7 +21,7 @@ RETRIEVE_TOP_N = 5  # kept after reranking
 
 # The safety LLM gets this long before the cascade falls back to its regex flag.
 SAFETY_TIMEOUT_SECONDS = 3.0
-AGENT_TIMEOUT_SECONDS = 30.0
+AGENT_TIMEOUT_SECONDS = 30.0  # per attempt; rate-limit retries wait in between
 SUMMARY_TIMEOUT_SECONDS = 5.0
 VISION_TIMEOUT_SECONDS = 30.0
 

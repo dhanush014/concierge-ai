@@ -31,6 +31,10 @@ TIMEOUTS: dict[Role, float] = {
 
 
 MAX_TOKENS: dict[Role, int] = {"vision": 400}
+# Groq's free tier allows a few requests' worth of tokens per minute; a 429 says how many
+# seconds to wait and the client waits that long. The safety check has a 3-second budget
+# and its own fallback, and the summary has a fixed fallback, so they don't retry.
+MAX_RETRIES: dict[Role, int] = {"agent": 3, "vision": 2}
 
 
 class FakeModeNotAllowed(RuntimeError):
@@ -68,7 +72,7 @@ def chat_model(role: Role) -> BaseChatModel:
         model=MODELS[role],
         temperature=0,
         timeout=TIMEOUTS[role],
-        max_retries=0,  # the callers have their own fallbacks; a retry would blow the time budget
+        max_retries=MAX_RETRIES.get(role, 0),
         # The card reply is a short JSON object; Groq's free tier rejects a request whose
         # default output reservation is above the model's per-minute output cap.
         max_tokens=MAX_TOKENS.get(role),

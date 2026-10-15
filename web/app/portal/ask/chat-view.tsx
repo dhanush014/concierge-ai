@@ -265,8 +265,6 @@ export function ChatView() {
         </button>
       </div>
 
-      <StatusMessage status={shown} />
-
       {/* Screen readers hear each finished reply once, not every streamed word. */}
       <div role="status" aria-live="polite" className="sr-only">
         {announced.polite}
@@ -317,6 +315,8 @@ export function ChatView() {
         </div>
       )}
 
+      {/* Next to the input, where the patient is looking (a long chat scrolls the top away). */}
+      <StatusMessage status={shown} />
       <Composer value={input} onChange={setInput} onSend={() => send(input)} streaming={streaming} inputRef={inputRef} />
       <div ref={endRef} />
     </>
