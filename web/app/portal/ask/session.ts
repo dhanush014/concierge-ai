@@ -21,6 +21,7 @@ export function fromConversation(c: Conversation): Session {
       content: m.content,
       staffName: m.staff_name,
       sources: m.sources,
+      action: m.action,
     })),
   };
 }

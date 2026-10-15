@@ -34,10 +34,13 @@ RECORD_KINDS = [  # (pattern, list_my_records kind)
     (r"vaccin|immuniz|flu shot", "immunizations"),
 ]
 POLICY_WORDS = r"park|fast|visiting|visitor|bill|pay|records request|telehealth|mri|ct scan|no-show"
-BOOKING = r"\b(book|reschedul\w*|cancel\w*|move)\b"
+BOOKING = r"\b(book\w*|schedule)\b"
+CHANGE_VISIT = r"\b(reschedul\w*|cancel\w*|move)\b"
+WHEN = r"(\d{4}-\d{2}-\d{2})(?:\D+(\d{1,2}:\d{2}))?"
 COVERAGE = r"\b(cover\w*|copays?|deductible|prior auth\w*|insurance|out-of-pocket|in network)\b"
-APPOINTMENTS_TAB = ("I can't book, reschedule or cancel visits in chat. Use the Appointments tab: "
-                    "it shows open times and makes the change right away.")
+APPOINTMENTS_TAB = ("I can't reschedule or cancel visits in chat. Use the Appointments tab: "
+                    "it shows your visits and makes the change right away.")
+BOOKING_QUESTION = "Sure. Which doctor or kind of visit, and what day and time work for you?"
 
 
 CARDS_DIR = Path(__file__).resolve().parents[3] / "data" / "cards"
@@ -66,8 +69,15 @@ def _last_human(messages: list[BaseMessage]) -> str:
 def fake_tool_call(text: str) -> tuple[str, dict[str, Any]] | None:
     """The one tool the fake agent calls for a question, or None (answer directly)."""
     lower = text.lower()
-    if re.search(BOOKING, lower):
+    if re.search(CHANGE_VISIT, lower):
         return None
+    if re.search(BOOKING, lower):  # "book with Dr. X on 2026-10-20 at 10:00": find it
+        when = re.search(WHEN, lower)
+        if when is None:
+            return None
+        doctor = re.search(r"\bwith (.+?)(?: on\b| at\b|$)", text, re.IGNORECASE)
+        return "find_open_times", {"date": when.group(1), "time": when.group(2),
+                                   "doctor": doctor.group(1).strip() if doctor else None}
     if re.search(COVERAGE, lower):
         return "check_my_coverage", {"question": text}
     if re.search(r"\bappointments?\b|\bvisits?\b", lower):
@@ -104,9 +114,11 @@ class FakeChatModel(BaseChatModel):
         if isinstance(messages[-1], ToolMessage):  # tool result is in: answer from it
             results = [str(m.content).split("\n", 1)[-1] for m in messages if isinstance(m, ToolMessage)]
             return AIMessage("Here is what I found.\n" + "\n".join(results))
-        call = fake_tool_call(_last_human(messages))
+        question = _last_human(messages)
+        call = fake_tool_call(question)
         if call is None:
-            return AIMessage(APPOINTMENTS_TAB)
+            changing = re.search(CHANGE_VISIT, question.lower())
+            return AIMessage(APPOINTMENTS_TAB if changing else BOOKING_QUESTION)
         name, args = call
         return AIMessage("", tool_calls=[{"name": name, "args": args, "id": "fake_call_1", "type": "tool_call"}])
 

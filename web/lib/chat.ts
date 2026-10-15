@@ -12,6 +12,9 @@ export type SourceRef = {
   date: string | null; // ISO date
 };
 
+/** A button under a reply, e.g. "Review and book" -> the prefilled booking page. */
+export type MessageAction = { label: string; href: string };
+
 export type ChatMessage = {
   id: string;
   sender: "patient" | "assistant" | "staff";
@@ -20,6 +23,7 @@ export type ChatMessage = {
   created_at: string;
   staff_name: string | null;
   sources: SourceRef[] | null;
+  action: MessageAction | null;
 };
 
 export type Conversation = {
@@ -34,6 +38,7 @@ export type ChatDone = {
   kind: MessageKind | null;
   status: ConversationStatus;
   sources: SourceRef[];
+  action: MessageAction | null;
 };
 
 type StreamEvent =
@@ -96,7 +101,7 @@ export async function streamChat(conversationId: string | null, message: string,
         if (event.type === "conversation") handlers.onConversation(event.id);
         else if (event.type === "token") handlers.onToken(event.text);
         else if (event.type === "notice") handlers.onNotice(event.text);
-        else if (event.type === "done") return { kind: event.kind, status: event.status, sources: event.sources ?? [] };
+        else if (event.type === "done") return { kind: event.kind, status: event.status, sources: event.sources ?? [], action: event.action ?? null };
         else throw new ChatStreamError();
       }
     }

@@ -75,6 +75,13 @@ class SourceRef(BaseModel):
     date: str | None  # ISO date
 
 
+class MessageAction(BaseModel):
+    """A button under a reply: "Review and book" opens the prefilled booking page."""
+
+    label: str
+    href: str
+
+
 class Message(BaseModel):
     id: UUID
     sender: Literal["patient", "assistant", "staff"]
@@ -83,6 +90,7 @@ class Message(BaseModel):
     created_at: datetime
     staff_name: str | None = None
     sources: list[SourceRef] | None = None
+    action: MessageAction | None = None
 
 
 class Conversation(BaseModel):

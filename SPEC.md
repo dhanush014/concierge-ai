@@ -32,6 +32,12 @@ readable text, no decoration.
 - Cancel: release the slot.
 - Rules: never show slots in the past. A slot can never be double-booked (enforced by a
   database constraint, not app code).
+- From the chat: the assistant asks for doctor (or kind of doctor), day and time, then
+  looks them up (`find_open_times`, read-only). If exactly one open slot matches, the
+  reply carries a "Review and book" button (`messages.action`) and the chat opens the
+  booking review page with doctor, visit type and slot filled in. Otherwise it lists the
+  nearest open times. The booking itself is still this plain-code flow: the patient
+  presses Confirm booking. Reschedule and cancel stay in the Appointments tab.
 
 ### 2. Insurance check (multimodal + RAG)
 1. Patient uploads a card photo; file saved to Supabase Storage.
@@ -62,7 +68,8 @@ message -> safety check -> agent (LLM + read-only tools, max 4 calls) -> answer 
 - Safety check runs first on every message (see Handoff).
 - Tools: appointments, documents, lab results (grouped by test), record lists (meds,
   conditions, allergies, immunizations, visits), record search, hospital policy search,
-  coverage check (`check_my_coverage`, see Insurance check). The patient id is injected
+  coverage check (`check_my_coverage`, see Insurance check), open appointment times
+  (`find_open_times`, see Appointments). The patient id is injected
   from the login, never the LLM.
 - Answers cite tool lines by tag; the cited sources are saved with the message
   (`messages.sources`) and shown under the reply.

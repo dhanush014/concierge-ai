@@ -169,12 +169,15 @@ export function ChatView() {
           }));
         },
       });
-      if (reply) patchReply(() => ({ kind: done.kind ?? "text", pending: false, sources: done.sources }));
+      if (reply) patchReply(() => ({ kind: done.kind ?? "text", pending: false, sources: done.sources, action: done.action }));
       else dropReply();
       setSession((s) => ({ ...s, status: done.status }));
       const spoken = [withCitations(reply, done.sources), ...notices].filter(Boolean).join(" ") || "Sent. The nurse will see your message.";
       setAnnounced(done.kind === "emergency" ? { polite: "", urgent: spoken } : { polite: reply ? `Assistant: ${spoken}` : spoken, urgent: "" });
       if (conversationId) adopt(conversationId);
+      // A time was found: open the prefilled booking page; the patient confirms there.
+      // (After adopt, so Back returns to this conversation.)
+      if (done.action) router.push(done.action.href);
     } catch (error) {
       dropReply(); // the unfinished reply
       if (isStatus(error, 401)) return router.replace("/login");

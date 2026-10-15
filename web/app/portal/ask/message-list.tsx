@@ -1,4 +1,5 @@
-import type { MessageKind, SourceRef } from "@/lib/chat";
+import Link from "next/link";
+import type { MessageAction, MessageKind, SourceRef } from "@/lib/chat";
 import { CLINIC_TZ } from "@/lib/time";
 
 // Records can be years old, so source dates include the year: "Nov 28, 2025".
@@ -13,6 +14,8 @@ export type ShownMessage = {
   staffName?: string | null;
   /** What an assistant answer cites (shown under it). */
   sources?: SourceRef[] | null;
+  /** A button under the answer, e.g. "Review and book". */
+  action?: MessageAction | null;
   /** Still streaming in. */
   pending?: boolean;
 };
@@ -130,6 +133,14 @@ function Message({ message: m }: { message: ShownMessage }) {
     <div className={`${bubble} bg-accent-soft text-ink`} aria-busy={m.pending || undefined}>
       <span className="sr-only">Assistant: </span>
       {withCitations(m.content, m.sources) || (m.pending ? <span className="text-muted">Thinking…</span> : null)}
+      {!m.pending && m.action && (
+        <Link
+          href={m.action.href}
+          className="mt-3 flex min-h-11 w-fit items-center rounded-md bg-accent px-5 font-semibold text-white hover:bg-accent-hover"
+        >
+          {m.action.label}
+        </Link>
+      )}
       {!m.pending && m.sources && m.sources.length > 0 && <Sources sources={m.sources} />}
     </div>
   );

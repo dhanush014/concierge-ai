@@ -13,6 +13,7 @@ close endpoint resumes it with the handoff transcript.
 Conversation memory lives in the Postgres checkpointer, one thread per conversation.
 """
 
+from datetime import datetime
 import logging
 from typing import Annotated, TypedDict
 from uuid import UUID
@@ -30,7 +31,7 @@ from psycopg_pool import ConnectionPool
 
 from app import handoffs
 from app.agent import config, llm, safety
-from app.agent.config import MAX_TOOL_CALLS, NURSE_NOTIFIED_NOTICE
+from app.agent.config import CLINIC_TZ, MAX_TOOL_CALLS, NURSE_NOTIFIED_NOTICE
 from app.agent.prompts import AGENT_PROMPT, SUMMARY_PROMPT
 from app.agent.toolkit import make_tools
 
@@ -129,6 +130,12 @@ def wait_for_staff(state: ChatState) -> ChatState:
     return {"messages": [*said, AIMessage(config.ASSISTANT_BACK_NOTICE)]}
 
 
+def agent_prompt() -> str:
+    """The agent prompt plus today's date in clinic time, for "next Tuesday"."""
+    today = datetime.now(CLINIC_TZ)
+    return f"{AGENT_PROMPT}\nToday is {today:%A, %B %-d, %Y} ({today:%Y-%m-%d}), clinic time.\n"
+
+
 def make_agent_node(tools: list[BaseTool]):
     def agent(state: ChatState) -> ChatState:
         """One LLM step: call tools, or answer. Out of tool budget -> no tools offered."""
@@ -137,7 +144,7 @@ def make_agent_node(tools: list[BaseTool]):
         model = llm.chat_model("agent")
         if remaining > 0:
             model = model.bind_tools(tools)
-        reply = model.invoke([SystemMessage(AGENT_PROMPT), *earlier, *turn])
+        reply = model.invoke([SystemMessage(agent_prompt()), *earlier, *turn])
         if isinstance(reply, AIMessage) and len(reply.tool_calls) > remaining:
             reply.tool_calls = reply.tool_calls[: max(remaining, 0)]  # never exceed the budget
         return {"messages": [reply]}

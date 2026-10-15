@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from app.agent import llm
-from app.agent.fake_llm import APPOINTMENTS_TAB, FakeChatModel, fake_tool_call
+from app.agent.fake_llm import APPOINTMENTS_TAB, BOOKING_QUESTION, FakeChatModel, fake_tool_call
 from app.agent.llm import chat_model as real_chat_model  # bound before the autouse fake patches it
 from app.main import app
 
@@ -94,4 +94,5 @@ def test_fake_agent_calls_then_answers_with_the_tool_lines() -> None:
 
 
 def test_fake_agent_points_booking_to_the_appointments_tab() -> None:
-    assert FakeChatModel(role="agent").invoke([HumanMessage("please book me in")]).content == APPOINTMENTS_TAB
+    assert FakeChatModel(role="agent").invoke([HumanMessage("please book me in")]).content == BOOKING_QUESTION
+    assert FakeChatModel(role="agent").invoke([HumanMessage("cancel my visit")]).content == APPOINTMENTS_TAB

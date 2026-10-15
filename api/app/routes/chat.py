@@ -6,9 +6,10 @@ Stream events (each `data: <json>`):
   {"type": "conversation", "id": ...}           first, always
   {"type": "token", "text": ...}                 zero or more; join them for the reply
   {"type": "notice", "text": ...}                a system line, e.g. "A nurse has been notified"
-  {"type": "done", "safety", "tools", "kind", "status", "sources"}  last on success;
+  {"type": "done", "safety", "tools", "kind", "status", "sources", "action"}  last on success;
                                                  status "handoff" = waiting for staff;
-                                                 tools = names called; sources = cited, in order
+                                                 tools = names called; sources = cited, in order;
+                                                 action = a button (e.g. "Review and book") or null
   {"type": "error", "message": "chat_failed"}    last on failure (patient message is kept)
 
 While a conversation is in handoff the agent stays silent: the patient's message is
@@ -31,6 +32,7 @@ from langgraph.graph.state import CompiledStateGraph
 from psycopg_pool import ConnectionPool
 
 from app import handoffs
+from app.agent import booking
 from app.agent import config as agent_config
 from app.agent.graph import turn_input, turn_tool_messages
 from app.agent.record_tools import cited_sources
@@ -79,9 +81,9 @@ def run_turn(
     kind = "text"
     category = "ok"
 
-    def save(content: str, kind: str, sources: list[dict] | None = None) -> None:
+    def save(content: str, kind: str, sources: list[dict] | None = None, action: dict | None = None) -> None:
         with pool.connection() as conn:
-            handoffs.save_message(conn, conversation_id, "assistant", content, kind, sources=sources)
+            handoffs.save_message(conn, conversation_id, "assistant", content, kind, sources=sources, action=action)
 
     try:
         for mode, data in graph.stream(
@@ -111,12 +113,14 @@ def run_turn(
         values = state.values
         tool_messages = turn_tool_messages(values["messages"]) if category == "ok" else []
         sources: list[dict] = []
+        action = None
         if category == "ok":
             answer = str(values["messages"][-1].content)
-            sources = cited_sources(answer, [m.artifact for m in tool_messages])
-            save(answer, "text", sources)
+            sources = cited_sources(answer, [m.artifact for m in tool_messages if m.name != booking.TOOL_NAME])
+            action = booking.action_for(tool_messages)
+            save(answer, "text", sources, action)
         yield sse({"type": "done", "safety": values["safety"], "tools": [m.name for m in tool_messages],
-                   "kind": kind, "status": status, "sources": sources})
+                   "kind": kind, "status": status, "sources": sources, "action": action})
     except Exception:
         log.exception("Chat turn failed for conversation %s", conversation_id)
         yield sse({"type": "error", "message": "chat_failed"})

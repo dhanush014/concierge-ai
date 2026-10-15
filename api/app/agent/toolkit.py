@@ -13,6 +13,7 @@ from langchain_core.tools import BaseTool, tool
 from langgraph.prebuilt import InjectedState
 from psycopg_pool import ConnectionPool
 
+from app.agent import booking
 from app.agent import record_tools as rt
 from app.agent.tools import appointment_lines, document_lines
 
@@ -72,6 +73,20 @@ def make_tools(pool: ConnectionPool) -> list[BaseTool]:
         return rt.render(f"Hospital policies matching {query!r}:", lines, "No policy matched.")
 
     @tool(response_format="content_and_artifact")
+    def find_open_times(date: str, time: str | None = None, doctor: str | None = None) -> tuple[str, list[dict]]:
+        """Open appointment times on a day (date "YYYY-MM-DD"), optionally at a time
+        ("HH:MM", 24-hour) and with a doctor (name or specialty, e.g. "Patel",
+        "cardiology"). If exactly one open time matches, the booking page opens for the
+        patient to confirm. Lists our doctors if none matches; lists nearby open times
+        if the exact time isn't open. You cannot book: the patient confirms."""
+        try:
+            day, at = booking.parse_day(date), booking.parse_time(time)
+        except ValueError:
+            return 'Use date "YYYY-MM-DD" and time "HH:MM" (24-hour).', []
+        with pool.connection() as conn:
+            return booking.find_open_times(conn, day, at, doctor)
+
+    @tool(response_format="content_and_artifact")
     def check_my_coverage(question: str, patient_id: PatientId) -> tuple[str, list[dict]]:
         """What the patient's own insurance plan covers: copays, deductible, out-of-pocket
         maximum, prior authorization, referrals, what's not covered, appeals. Uses their
@@ -82,4 +97,4 @@ def make_tools(pool: ConnectionPool) -> list[BaseTool]:
             else (result.header, [])
 
     return [get_my_appointments, get_my_documents, get_lab_results, list_my_records,
-            search_my_records, search_hospital_policies, check_my_coverage]
+            search_my_records, search_hospital_policies, check_my_coverage, find_open_times]
