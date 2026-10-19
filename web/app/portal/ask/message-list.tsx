@@ -28,7 +28,8 @@ const CITATION = /[ \t]?[[【][^\]】]*S-[0-9a-f]{4}[^\]】]*[\]】]/g;
  * The tags aren't shown: the sources are listed under the reply.
  */
 export function withoutCitations(text: string): string {
-  return text.replace(CITATION, "");
+  // The model is told to write plain text but sometimes still bolds a phrase.
+  return text.replace(CITATION, "").replace(/\*\*(.+?)\*\*/g, "$1");
 }
 
 function sourceLabel(s: SourceRef): string {
