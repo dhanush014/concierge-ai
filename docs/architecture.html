@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Concierge AI architecture</title>
+<!-- Rendered to architecture.png with headless Chrome at 1600x1000 (see the README). -->
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #111920; --box: #17212b; --line: #2b3946; --text: #e8edf2; --muted: #93a1ae;
+    --blue: #7fb3e6; --orange: #e39b5c; --teal: #7fd1c2; --purple-bg: #1b1730; --purple-line: #4b3f7a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { width: 1600px; height: 1000px; background: var(--bg); color: var(--text);
+         font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; position: relative; overflow: hidden; }
+  .abs { position: absolute; }
+  .box { position: absolute; background: var(--box); border: 1px solid var(--line); border-radius: 10px;
+         padding: 12px 14px; text-align: center; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
+  .box h3 { font-size: 17px; font-weight: 650; }
+  .box p { font-size: 13px; color: var(--muted); line-height: 1.35; }
+  .box p.note { color: var(--teal); }
+  .hot { border-color: #5a4330; }
+  .mono { font-family: "SF Mono", Menlo, monospace; }
+  .label { position: absolute; font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .lane { position: absolute; font-size: 12px; letter-spacing: 1.5px; color: var(--teal); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<h1 class="abs" style="left:40px; top:36px; font-size:30px; font-weight:700;">Concierge AI</h1>
+<p class="abs" style="left:40px; top:80px; font-size:15px; color:var(--muted);">A patient-portal assistant that answers from the record, and knows when to hand off to a nurse</p>
+
+<!-- Center: the agent -->
+<div class="abs" style="left:310px; top:125px; width:900px; height:640px; background:var(--panel); border:1px solid #26313b; border-radius:14px;"></div>
+<p class="abs" style="left:335px; top:142px; font-size:19px; font-weight:650;">Concierge AI — LangGraph agent</p>
+<p class="abs" style="left:335px; top:170px; font-size:13px; color:var(--muted);">FastAPI · replies streamed to the browser · Postgres checkpointer (conversation memory)</p>
+
+<div class="box" style="left:340px; top:200px; width:840px; height:75px;">
+  <h3>Safety check — runs on every message, before the agent</h3>
+  <p>strict rules (instant, no model) → gpt-oss-20b (3 s budget) → fallback rules if the model is slow or down</p>
+</div>
+
+<div class="box hot" style="left:340px; top:325px; width:330px; height:80px;">
+  <h3>Escalate</h3>
+  <p>911 or nurse message first, then an AI summary and a ticket</p>
+</div>
+<div class="box hot" style="left:340px; top:445px; width:330px; height:95px;">
+  <h3>Wait for staff</h3>
+  <p>the graph pauses (interrupt) and resumes with the nurse chat in memory</p>
+</div>
+
+<div class="box" style="left:710px; top:325px; width:470px; height:80px;">
+  <h3>Agent</h3>
+  <p>gpt-oss-120b · up to 4 tool calls · answers only from tool results, with sources</p>
+</div>
+<div class="box" style="left:710px; top:445px; width:470px; height:95px;">
+  <h3>8 read-only tools</h3>
+  <p>appointments · documents · labs · record lists · record search · policy search · coverage · open times</p>
+  <p class="note">patient_id is injected from the login: the model never sees or picks it</p>
+</div>
+
+<div class="abs" style="left:340px; top:580px; width:840px; height:165px; border:1px dashed #3a4a57; border-radius:10px;"></div>
+<p class="lane" style="left:360px; top:596px;">KNOWLEDGE (RAG) · <span style="color:var(--muted); letter-spacing:0; font-weight:400;">pgvector exact search · bge-small embeddings · cross-encoder reranker</span></p>
+<div class="box" style="left:360px; top:628px; width:250px; height:95px;">
+  <h3 class="mono" style="font-size:15px;">patient records</h3>
+  <p>one chunk per event · this patient only · sensitive excluded</p>
+</div>
+<div class="box" style="left:635px; top:628px; width:250px; height:95px;">
+  <h3 class="mono" style="font-size:15px;">hospital policies</h3>
+  <p>8 docs · split by heading · reranked</p>
+</div>
+<div class="box" style="left:910px; top:628px; width:250px; height:95px;">
+  <h3 class="mono" style="font-size:15px;">insurance plans</h3>
+  <p>5 payers · searched for the patient’s own payer only</p>
+</div>
+
+<!-- Left: people -->
+<div class="box" style="left:40px; top:165px; width:230px; height:95px;">
+  <h3>Patient portal</h3>
+  <p>Next.js · Ask, Appointments, Documents</p>
+  <p class="note">login → patient_id in the token</p>
+</div>
+<div class="box" style="left:40px; top:445px; width:230px; height:95px;">
+  <h3>Staff inbox</h3>
+  <p>nurse joins, replies, closes · live via Supabase Realtime</p>
+</div>
+
+<!-- Right: what comes back -->
+<div class="box" style="left:1270px; top:165px; width:290px; height:95px;">
+  <h3>Answer in the chat</h3>
+  <p>streamed · sources listed under it</p>
+</div>
+<div class="box" style="left:1270px; top:325px; width:290px; height:80px;">
+  <h3>Booking page</h3>
+  <p>prefilled · the patient presses Confirm (plain code)</p>
+</div>
+
+<!-- Bottom: card flow -->
+<p class="lane" style="left:40px; top:778px;">INSURANCE CARD FLOW</p>
+<div class="box" style="left:40px;   top:800px; width:272px; height:72px;"><h3>Insurance card photo</h3><p>uploaded to Storage</p></div>
+<div class="box" style="left:352px;  top:800px; width:272px; height:72px;"><h3>Vision model</h3><p>qwen3.8-27b · blank if unsure, never a guess</p></div>
+<div class="box" style="left:664px;  top:800px; width:272px; height:72px;"><h3>Patient confirms</h3><p>can correct any field</p></div>
+<div class="box" style="left:976px;  top:800px; width:272px; height:72px;"><h3>Network check</h3><p>plain code · in / out / not on file</p></div>
+<div class="box" style="left:1288px; top:800px; width:272px; height:72px;"><h3>Coverage tool</h3><p>searches only that payer’s plan</p></div>
+
+<!-- LangSmith -->
+<div class="box" style="left:40px; top:900px; width:1520px; height:62px; background:var(--purple-bg); border-color:var(--purple-line);">
+  <h3>LangSmith · tracing, monitoring and evals</h3>
+  <p>every chat turn traced (safety verdict, tool calls, tokens) · scored automatically (escalated, tool calls, has sources) · eval datasets run as experiments</p>
+</div>
+
+<!-- Arrows -->
+<svg class="abs" style="left:0; top:0;" width="1600" height="1000" viewBox="0 0 1600 1000">
+  <defs>
+    <marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7fb3e6"/></marker>
+    <marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e39b5c"/></marker>
+  </defs>
+  <g fill="none" stroke="#7fb3e6" stroke-width="1.6">
+    <path d="M270,212 L337,212" marker-end="url(#b)"/>                       <!-- portal -> safety -->
+    <path d="M945,275 L945,322" marker-end="url(#b)"/>                       <!-- safety -> agent -->
+    <path d="M900,405 L900,442" marker-end="url(#b)"/>                       <!-- agent -> tools -->
+    <path d="M990,445 L990,408" marker-end="url(#b)"/>                       <!-- tools -> agent -->
+    <path d="M945,540 L945,577" marker-end="url(#b)"/>                       <!-- tools -> knowledge -->
+    <path d="M1180,345 L1230,345 L1230,212 L1267,212" marker-end="url(#b)"/> <!-- agent -> answer -->
+    <path d="M1180,375 L1267,375" marker-end="url(#b)"/>                     <!-- agent -> booking -->
+  </g>
+  <g fill="none" stroke="#7fb3e6" stroke-width="1.6" marker-end="url(#b)">
+    <path d="M312,836 L349,836"/><path d="M624,836 L661,836"/><path d="M936,836 L973,836"/><path d="M1248,836 L1285,836"/>
+  </g>
+  <g fill="none" stroke="#e39b5c" stroke-width="1.6">
+    <path d="M505,275 L505,322" marker-end="url(#o)"/>                       <!-- safety -> escalate -->
+    <path d="M505,405 L505,442" marker-end="url(#o)"/>                       <!-- escalate -> wait -->
+    <path d="M340,478 L273,478" marker-end="url(#o)"/>                       <!-- wait -> inbox -->
+    <path d="M270,510 L337,510" marker-end="url(#o)" stroke-dasharray="5 4"/><!-- inbox -> wait (close) -->
+  </g>
+</svg>
+
+<!-- Arrow labels -->
+<p class="label" style="left:276px; top:192px;">message</p>
+<p class="label" style="left:953px; top:290px; color:var(--blue);">ok</p>
+<p class="label" style="left:513px; top:290px; color:var(--orange);">emergency · clinical · wants a person</p>
+<p class="label" style="left:830px; top:416px;">call tool</p>
+<p class="label" style="left:998px; top:416px;">results</p>
+<p class="label" style="left:953px; top:552px;">search</p>
+<p class="label" style="left:1100px; top:290px;">answer + sources</p>
+<p class="label" style="left:1188px; top:382px;">booking link</p>
+<p class="label" style="left:276px; top:460px; color:var(--orange);">ticket</p>
+<p class="label" style="left:278px; top:516px; color:var(--orange);">close</p>
+
+</body>
+</html>
