@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Concierge AI: the data</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .row { display:grid; grid-template-columns:400px 1fr; gap:36px; margin-top:40px; }
+  pre { background:#0f161d; border:1px solid var(--line); border-radius:12px; padding:18px 22px; font-size:15px; line-height:1.5; color:#c9d4de; }
+  .k { color:var(--blue); } .s { color:#a8d4a0; } .n { color:var(--orange); }
+  .flow { display:flex; align-items:center; gap:14px; margin-top:26px; }
+  .flow .box { flex:1; padding:14px 16px; } .flow .box h3 { font-size:17px; } .flow .box p { font-size:14px; }
+  .arrow { color:var(--blue); font-size:26px; }
+  .chunk { margin-top:14px; background:#10201d; border:1px solid #2f5a52; border-radius:12px; padding:16px 22px; font-size:18px; }
+</style></head><body>
+<h1>The data: FHIR records from Synthea</h1>
+<p class="sub">20 synthetic patients with full medical histories. No real patient data anywhere.</p>
+<div class="row">
+  <div>
+    <p class="kicker">Why FHIR</p>
+    <ul>
+      <li><b>It's what hospitals expose.</b> <span>US rules require certified EHRs (Epic, Oracle Health) to offer FHIR APIs.</span></li>
+      <li><b>Swap the source, keep the pipeline.</b> <span>Synthea files today, a hospital's FHIR API tomorrow.</span></li>
+      <li><b>Why Synthea:</b> <span>realistic lifelong histories with labs, meds, visits and insurance, and zero privacy risk.</span></li>
+    </ul>
+  </div>
+  <div>
+    <p class="kicker">One patient = one FHIR bundle &nbsp;<span style="color:var(--muted); letter-spacing:0; text-transform:none; font-weight:400;">Aja: 442 resources (visits, labs, meds, conditions, claims…)</span></p>
+<pre>{ <span class="k">"resourceType"</span>: <span class="s">"Observation"</span>,
+  <span class="k">"code"</span>: { <span class="k">"coding"</span>: [{ <span class="k">"system"</span>: <span class="s">"http://loinc.org"</span>, <span class="k">"code"</span>: <span class="s">"718-7"</span>,
+                         <span class="k">"display"</span>: <span class="s">"Hemoglobin [Mass/volume] in Blood"</span> }] },
+  <span class="k">"effectiveDateTime"</span>: <span class="s">"2024-11-04T08:35:56-05:00"</span>,
+  <span class="k">"valueQuantity"</span>: { <span class="k">"value"</span>: <span class="n">16.586</span>, <span class="k">"unit"</span>: <span class="s">"g/dL"</span> } }</pre>
+    <p class="kicker" style="margin-top:22px;">becomes one sentence the AI can search</p>
+    <div class="chunk mono">Lab result, 2024-11-04: Hemoglobin [Mass/volume] in Blood: 16.59 g/dL</div>
+  </div>
+</div>
+<div class="flow">
+  <div class="box"><h3>Synthea</h3><p>generates FHIR bundles</p></div><span class="arrow">→</span>
+  <div class="box"><h3>Keep what patients ask about</h3><p>last 3 years of visits, labs, meds, allergies; skip billing claims</p></div><span class="arrow">→</span>
+  <div class="box"><h3>One chunk per event</h3><p>sensitive records left out</p></div><span class="arrow">→</span>
+  <div class="box"><h3>Embed (bge-small)</h3><p>runs locally, free</p></div><span class="arrow">→</span>
+  <div class="box" style="border-color:#2f5a52;"><h3>pgvector</h3><p>4,209 chunks, each tagged with its patient</p></div>
+</div>
+<p class="kicker" style="margin-top:40px;">Where each answer comes from</p>
+<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px;">
+  <div class="box"><h3>"When is my next visit?"</h3><p>Postgres: appointments and open slots → <b class="teal">get_my_appointments</b>, <b class="teal">find_open_times</b></p></div>
+  <div class="box"><h3>"What was my last A1c?" / "my meds?"</h3><p>FHIR chunks in pgvector, filtered to this patient → <b class="teal">search_my_records</b>, <b class="teal">get_lab_results</b></p></div>
+  <div class="box"><h3>"Is a ride to my visit covered?"</h3><p>Insurance plan chunks for this patient's insurer only → <b class="teal">check_my_coverage</b></p></div>
+</div>
+</body></html>

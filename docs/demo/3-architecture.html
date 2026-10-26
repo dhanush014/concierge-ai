@@ -1,0 +1,65 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Concierge AI: how it works</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .panel { position:absolute; background:#111920; border:1px solid #26313b; border-radius:16px; }
+  .ptitle { position:absolute; font-size:21px; font-weight:650; }
+  .box { position:absolute; }
+  .box h3 { font-size:19px; } .box p { font-size:15px; }
+  .row { position:absolute; left:1196px; width:320px; height:68px; background:var(--box); border:1px solid var(--line); border-radius:10px; padding:10px 14px; }
+  .row b { font-size:17px; } .row p { font-size:14px; color:var(--muted); margin-top:3px; }
+  .label { position:absolute; font-size:14px; color:var(--muted); }
+</style></head><body>
+<h1>How it works</h1>
+<p class="sub">One agent with clear instructions, a model, read-only tools, one database, and LangSmith watching every turn.</p>
+
+<div class="box" style="left:64px; top:200px; width:300px; height:150px;">
+  <h3>Patient · web app</h3><p>Next.js portal: Ask, Appointments, Documents</p><p class="teal">login → patient_id</p></div>
+<div class="box" style="left:64px; top:470px; width:300px; height:150px; border-color:#5a4330;">
+  <h3>Nurse · staff inbox</h3><p>gets the ticket and AI summary, joins, chats live, closes</p></div>
+
+<div class="panel" style="left:440px; top:180px; width:660px; height:470px;"></div>
+<p class="ptitle" style="left:466px; top:196px;">Agent <span style="color:var(--muted); font-weight:400; font-size:16px;">LangGraph · FastAPI</span></p>
+<div class="box" style="left:466px; top:240px; width:608px; height:86px; border-color:#5a4330;">
+  <h3>Safety check, on every message</h3>
+  <p>rules first, then a small model → <span class="teal">ok</span> · <span class="orange">emergency · clinical · wants a person</span></p></div>
+<div class="box" style="left:466px; top:350px; width:190px; height:200px;">
+  <h3>Instructions</h3><p>answer only from tools, cite sources, never diagnose, never book on its own</p></div>
+<div class="box" style="left:675px; top:350px; width:190px; height:200px;">
+  <h3>Model</h3><p>Groq: gpt-oss-120b answers, gpt-oss-20b checks safety, qwen reads insurance cards</p></div>
+<div class="box" style="left:884px; top:350px; width:190px; height:200px;">
+  <h3>8 tools</h3><p>read-only: visits, labs, records, policies, coverage, open times</p></div>
+<p class="label" style="left:466px; top:572px; width:610px; line-height:1.4;">Remembers each conversation · pauses while a nurse takes over, then picks up again</p>
+
+<div class="panel" style="left:1176px; top:180px; width:360px; height:470px;"></div>
+<p class="ptitle" style="left:1196px; top:196px;">Supabase</p>
+<div class="row" style="top:236px;"><b>Auth</b><p>login decides whose data the tools see</p></div>
+<div class="row" style="top:316px;"><b>Postgres</b><p>patients, appointments, chats, tickets</p></div>
+<div class="row" style="top:396px; border-color:#2f5a52;"><b>pgvector</b><p>records, policies, plans as searchable chunks</p></div>
+<div class="row" style="top:476px;"><b>Storage</b><p>insurance card photos, documents</p></div>
+<div class="row" style="top:556px;"><b>Realtime</b><p>live nurse ↔ patient chat</p></div>
+
+<div class="box" style="left:1176px; top:715px; width:360px; height:130px;">
+  <h3>Files</h3><p>Synthea FHIR records · hospital policies · insurance plans</p></div>
+<div class="box" style="left:64px; top:715px; width:1036px; height:130px; background:#1b1730; border-color:#4b3f7a;">
+  <h3 class="purple">LangSmith</h3><p>every chat turn traced and scored · eval datasets run as experiments · nurses grade escalations in an annotation queue</p></div>
+
+<svg class="abs" style="left:0; top:0;" width="1600" height="900">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7fb3e6"/></marker>
+        <marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e39b5c"/></marker>
+        <marker id="p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b7a6f2"/></marker></defs>
+  <g fill="none" stroke="#7fb3e6" stroke-width="2">
+    <path d="M366,265 L437,265" marker-end="url(#a)"/>
+    <path d="M437,300 L366,300" marker-end="url(#a)"/>
+    <path d="M1076,450 L1173,450" marker-end="url(#a)"/>
+    <path d="M1356,713 L1356,653" marker-end="url(#a)"/>
+  </g>
+  <path d="M437,545 L366,545" stroke="#e39b5c" stroke-width="2" fill="none" marker-end="url(#o)"/>
+  <path d="M770,652 L770,712" stroke="#b7a6f2" stroke-width="2" fill="none" marker-end="url(#p)"/>
+</svg>
+<p class="label" style="left:372px; top:240px;">ask</p>
+<p class="label" style="left:372px; top:306px;">answer</p>
+<p class="label" style="left:368px; top:520px;" class="orange"><span class="orange">handoff</span></p>
+<p class="label" style="left:1102px; top:425px;">read</p>
+<p class="label" style="left:1366px; top:672px;">ingest</p>
+<p class="label" style="left:782px; top:672px;"><span class="purple">every turn</span></p>
+</body></html>

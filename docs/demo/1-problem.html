@@ -1,0 +1,40 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Concierge AI: the problem</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .cols { display:grid; grid-template-columns:1fr 1fr 1.15fr; gap:28px; margin-top:44px; }
+  .col { background:var(--box); border:1px solid var(--line); border-radius:14px; padding:28px 28px 16px; height:520px; }
+  .col.me { border-color:#2f5a52; }
+  .co { margin-bottom:18px; } .co b { font-size:18px; } .co p { font-size:16px; color:var(--muted); margin-top:3px; line-height:1.4; }
+</style></head><body>
+<h1>Concierge AI</h1>
+<p class="sub">An assistant in the patient portal that answers from your own record and insurance, and hands anything clinical to a nurse.</p>
+<div class="cols">
+  <div class="col">
+    <p class="kicker orange">The problem</p>
+    <ul>
+      <li>Portal messages keep growing, and <b>nurses read every one by hand</b>.</li>
+      <li>Most are routine: <span>"When is my visit?" "What's my copay?" "What was my A1c?"</span></li>
+      <li>Patients can't decode their own insurance plan.</li>
+      <li>A generic chatbot answers everything, <b>even what it shouldn't</b>: chest pain, "do I have cancer?"</li>
+    </ul>
+  </div>
+  <div class="col">
+    <p class="kicker blue">Others working on this</p>
+    <div class="co"><b>Epic: Emmie and MyChart AI drafts</b><p>Patient assistant and reply drafts for clinicians, inside Epic.</p></div>
+    <div class="co"><b>Hippocratic AI</b><p>Patient-facing voice agents that escalate to human nurses.</p></div>
+    <div class="co"><b>Hello Patient</b><p>AI assistant for calls and texts: scheduling and reminders.</p></div>
+    <div class="co"><b>Clarion</b> <span style="color:var(--muted);font-size:15px">(YC W24)</span><p>AI agents for clinic calls and messages: scheduling, billing, refills.</p></div>
+    <p style="font-size:16px; color:var(--muted); margin-top:8px;">The market is real. I built the full loop myself, end to end.</p>
+  </div>
+  <div class="col me">
+    <p class="kicker">What makes Concierge different</p>
+    <ul>
+      <li><b>Safety check before the AI.</b> <span>Every message: emergency → 911, clinical → nurse.</span></li>
+      <li><b>Answers only from your data.</b> <span>Your record, your insurer's plan, with sources.</span></li>
+      <li><b>AI suggests, code acts.</b> <span>It finds the slot; you press Confirm.</span></li>
+      <li><b>A real nurse handoff.</b> <span>The agent pauses, the nurse chats live, and then it picks up again.</span></li>
+      <li><b>Measured, not guessed.</b> <span>Every chat is traced, nurses grade it, and evals gate every release.</span></li>
+    </ul>
+  </div>
+</div>
+</body></html>
