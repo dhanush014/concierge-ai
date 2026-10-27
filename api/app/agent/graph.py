@@ -30,7 +30,7 @@ from langgraph.types import interrupt
 from psycopg_pool import ConnectionPool
 
 from app import handoffs
-from app.agent import config, llm, safety
+from app.agent import config, identity, llm, safety
 from app.agent.config import CLINIC_TZ, MAX_TOOL_CALLS, NURSE_NOTIFIED_NOTICE
 from app.agent.prompts import AGENT_PROMPT, SUMMARY_PROMPT
 from app.agent.toolkit import make_tools
@@ -148,10 +148,19 @@ def patient_name(pool: ConnectionPool, patient_id: str | None) -> str | None:
     return f"{row['first_name']} {row['last_name']}" if row else None
 
 
+OTHER_PATIENT = "other_patient"  # name of the fixed reply to a request for another patient
+
+
 def make_agent_node(tools: list[BaseTool], pool: ConnectionPool):
     def agent(state: ChatState) -> ChatState:
         """One LLM step: call tools, or answer. Out of tool budget -> no tools offered."""
         earlier, turn = split_turn(state["messages"])
+        if len(turn) == 1 and state.get("patient_id"):  # start of the turn: no tools called yet
+            with pool.connection() as conn:
+                other = identity.other_patient_named(conn, str(turn[0].content), state["patient_id"])
+            if other:
+                reply = AIMessage(config.OTHER_PATIENT_REPLY.format(name=other), name=OTHER_PATIENT)
+                return {"messages": [reply]}
         remaining = MAX_TOOL_CALLS - tool_calls_used(turn)
         model = llm.chat_model("agent")
         if remaining > 0:

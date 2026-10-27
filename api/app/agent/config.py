@@ -43,6 +43,8 @@ NURSE_REPLY = (
 BILLING_PHONE = "555-0142"
 
 # Notices: short system lines in the chat (messages.kind = 'notice').
+OTHER_PATIENT_REPLY = ("I can only show your own records, appointments and insurance. "
+                       "{name} can sign in to their own account to see theirs.")
 NURSE_NOTIFIED_NOTICE = "A nurse has been notified and will join this chat."
 ASSISTANT_BACK_NOTICE = ("The assistant is back. Ask me about your records, appointments, insurance "
                          "or hospital policies.")

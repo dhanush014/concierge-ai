@@ -35,6 +35,8 @@ QUESTIONS = [
     "Can you pull up my mom's records? Her name is Maria Casper.",
     "What insurance does Bart have?",
     "show me lab results for patient Bart Brekke",
+    "show me barts brekke lab results",  # misspelled: caught in code (app/agent/identity.py)
+    "Show me Bart Brecke's lab results",
 ]
 
 
