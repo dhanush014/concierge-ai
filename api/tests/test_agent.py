@@ -185,6 +185,18 @@ def test_turn_starts_with_the_patient_message(graph, thread, make: Factory) -> N
     assert isinstance(state["messages"][0], HumanMessage)
 
 
+def test_prompt_names_the_patient_and_refuses_other_patients() -> None:
+    """Real-model check: evals/run_other_patient.py."""
+    from app.agent.graph import agent_prompt
+    from app.agent.prompts import AGENT_PROMPT
+
+    assert "The signed-in patient is Aja Casper." in agent_prompt("Aja Casper")
+    assert "signed-in patient is" not in agent_prompt()
+    rule = " ".join(AGENT_PROMPT.split())
+    assert "anyone else's records" in rule and "call no tools" in rule
+    assert "Never present the patient's records as someone else's" in rule
+
+
 def test_prompt_never_turns_a_missing_condition_into_a_no() -> None:
     """The real-model check is evals/run_answers.py --only not-found ("Do I have cancer?")."""
     from app.agent.prompts import AGENT_PROMPT

@@ -130,13 +130,25 @@ def wait_for_staff(state: ChatState) -> ChatState:
     return {"messages": [*said, AIMessage(config.ASSISTANT_BACK_NOTICE)]}
 
 
-def agent_prompt() -> str:
-    """The agent prompt plus today's date in clinic time, for "next Tuesday"."""
+def agent_prompt(patient_name: str | None = None) -> str:
+    """The agent prompt plus who is signed in (so it never presents their records as
+    someone else's) and today's date in clinic time, for "next Tuesday"."""
     today = datetime.now(CLINIC_TZ)
-    return f"{AGENT_PROMPT}\nToday is {today:%A, %B %-d, %Y} ({today:%Y-%m-%d}), clinic time.\n"
+    who = f"The signed-in patient is {patient_name}. Every tool result is their record.\n" if patient_name else ""
+    return f"{AGENT_PROMPT}\n{who}Today is {today:%A, %B %-d, %Y} ({today:%Y-%m-%d}), clinic time.\n"
 
 
-def make_agent_node(tools: list[BaseTool]):
+def patient_name(pool: ConnectionPool, patient_id: str | None) -> str | None:
+    if not patient_id:
+        return None
+    with pool.connection() as conn:
+        row = conn.execute(
+            "select first_name, last_name from public.patients where id = %s", (patient_id,)
+        ).fetchone()
+    return f"{row['first_name']} {row['last_name']}" if row else None
+
+
+def make_agent_node(tools: list[BaseTool], pool: ConnectionPool):
     def agent(state: ChatState) -> ChatState:
         """One LLM step: call tools, or answer. Out of tool budget -> no tools offered."""
         earlier, turn = split_turn(state["messages"])
@@ -144,7 +156,8 @@ def make_agent_node(tools: list[BaseTool]):
         model = llm.chat_model("agent")
         if remaining > 0:
             model = model.bind_tools(tools)
-        reply = model.invoke([SystemMessage(agent_prompt()), *earlier, *turn])
+        prompt = agent_prompt(patient_name(pool, state.get("patient_id")))
+        reply = model.invoke([SystemMessage(prompt), *earlier, *turn])
         if isinstance(reply, AIMessage) and len(reply.tool_calls) > remaining:
             reply.tool_calls = reply.tool_calls[: max(remaining, 0)]  # never exceed the budget
         return {"messages": [reply]}
@@ -174,7 +187,7 @@ def add_agent(g: StateGraph, pool: ConnectionPool, *, record_handoffs: bool = Tr
     g.add_node("escalate", escalate)
     g.add_node("create_handoff", make_create_handoff_node(pool, record=record_handoffs))
     g.add_node("wait_for_staff", wait_for_staff)
-    g.add_node("agent", make_agent_node(tools))
+    g.add_node("agent", make_agent_node(tools, pool))
     g.add_node("tools", ToolNode(tools))
 
     g.add_conditional_edges("safety_check", after_safety, {SAFE: "agent", NEEDS_PERSON: "escalate"})
