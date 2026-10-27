@@ -101,3 +101,16 @@ test("4. Unreadable card: every field highlighted, payer required", async ({ pag
   await expect(summary(page)).toContainText("northstar");
   await expect(summary(page)).toContainText("Out of network"); // matched by name, in plain code
 });
+
+test("5. Deleting a card while reviewing it closes the review form", async ({ page }) => {
+  await openDocuments(page);
+  await uploadCard(page, card("aja-smudged.png", "e2e-smudged.png"));
+  await page.getByRole("button", { name: "Read card e2e-smudged.png" }).click();
+  await expect(form(page)).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete e2e-smudged.png" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Delete document" }).click();
+
+  await expect(page.getByRole("status").first()).toContainText("Document deleted");
+  await expect(form(page)).toHaveCount(0);
+});

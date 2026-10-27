@@ -105,6 +105,8 @@ export function DocumentsView() {
     setPending(true);
     try {
       await deleteDocument(target.id);
+      // Its reading is gone with it: close the review form if it was this card's.
+      if (read?.insurance.document_id === target.id) setRead(null);
       setStatus({ kind: "success", text: "Document deleted." });
     } catch (error) {
       if (isStatus(error, 401)) return toLogin();
