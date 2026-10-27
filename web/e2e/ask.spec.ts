@@ -108,9 +108,26 @@ test("5. Bart can't load Aja's conversation", async ({ page, browser }) => {
   const bart = await (await browser.newContext()).newPage();
   await loginAs(bart, BART);
   await bart.goto(`/portal/ask?c=${ajasId}`);
-  await expect(bart.getByText("That conversation isn't available.")).toBeVisible();
+  await expect(bart).toHaveURL(/\?c=new$/); // a fresh chat, no error shown
+  await expect(bart.getByText("That conversation isn't available.")).toHaveCount(0);
   await expect(bart.getByText("a private question from Aja")).toHaveCount(0);
   await bart.context().close();
+});
+
+test("5b. Sending into a deleted conversation quietly starts a new one", async ({ page }) => {
+  await openNewChat(page);
+  await ask(page, "when is my next appointment");
+  const oldId = conversationId(page);
+  await purgeConversationsSince(AJA, runStart); // deleted while still on screen
+
+  await input(page).fill("what medications am I on");
+  await input(page).press("Enter");
+
+  await expect(page).not.toHaveURL(new RegExp(oldId));
+  await expect(page).toHaveURL(/\?c=[0-9a-f-]{36}$/);
+  await expect(conversation(page)).toHaveCount(2); // just the new question and its answer
+  await expect(conversation(page).nth(0)).toContainText("what medications am I on");
+  await expect(page.getByText("That conversation isn't available.")).toHaveCount(0);
 });
 
 test("6. Phone width, keyboard only: Shift+Enter adds a line, Enter sends", async ({ page }) => {

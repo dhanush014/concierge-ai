@@ -82,9 +82,10 @@ export function ChatView() {
         if (!active) return;
         if (isStatus(error, 401)) return router.replace("/login");
         if (isStatus(error, 404)) {
-          // Not yours or gone: say so and offer a fresh chat.
-          setStatus({ kind: "error", text: messageFor(error) });
-          return setSession(empty(urlKey));
+          // Not yours or deleted: quietly open a fresh chat instead.
+          setSession(empty("new"));
+          setNavTo("new");
+          return router.replace(`${BASE}?c=new`);
         }
         setLoadError({ key: urlKey, error });
       },
@@ -113,14 +114,14 @@ export function ChatView() {
     endRef.current?.scrollIntoView({ block: "end" });
   }, [session.messages]);
 
-  async function send(text: string) {
+  async function send(text: string, fresh = false) {
     const question = text.trim();
-    if (!question || streaming) return;
+    if (!question || (streaming && !fresh)) return;
     setStatus(null);
     setAnnounced({ polite: "", urgent: "" });
     setInput("");
     setStreaming(true);
-    const waiting = session.status === "handoff"; // a nurse answers now, not the assistant
+    const waiting = !fresh && session.status === "handoff"; // a nurse answers now, not the assistant
     const stamp = Date.now();
     const replyKey = `reply-${stamp}`;
     const blank: ShownMessage = { key: replyKey, sender: "assistant", kind: "text", content: "", pending: true };
@@ -145,7 +146,7 @@ export function ChatView() {
       });
     const dropReply = () => setSession((s) => ({ ...s, messages: s.messages.filter((m) => m.key !== replyKey) }));
 
-    let conversationId = session.conversationId;
+    let conversationId = fresh ? null : session.conversationId;
     const adopt = (id: string) => {
       setSession((s) => ({ ...s, key: id, conversationId: id }));
       if (urlKey !== id) navigate(id, "replace");
@@ -181,11 +182,11 @@ export function ChatView() {
     } catch (error) {
       dropReply(); // the unfinished reply
       if (isStatus(error, 401)) return router.replace("/login");
-      if (isStatus(error, 404)) {
-        setStatus({ kind: "error", text: messageFor(error) });
+      if (isStatus(error, 404) && !fresh) {
+        // This conversation was deleted: ask again in a new one, without a fuss.
         setSession(empty("new"));
         navigate("new", "replace");
-        return;
+        return await send(question, true); // await: keep the input busy until it finishes
       }
       if (conversationId) adopt(conversationId); // the question was saved; retry continues it
       setStatus({
