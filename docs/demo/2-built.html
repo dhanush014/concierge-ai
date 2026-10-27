@@ -1,0 +1,84 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Concierge AI: what I built</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { height:940px; padding:0; }
+  .box { position:absolute; padding:12px 14px; }
+  .box h3 { font-size:18px; } .box p { font-size:14px; margin-top:4px; line-height:1.4; }
+  .sec { position:absolute; left:56px; font-size:14px; letter-spacing:2px; font-weight:650; text-transform:uppercase; }
+  .lbl { position:absolute; font-size:13px; color:var(--muted); }
+  .tool { font-family:"SF Mono",Menlo,monospace; font-size:13px; color:var(--text); line-height:1.6; }
+  .grp { font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-top:8px; }
+  .sb { position:absolute; left:1312px; width:220px; height:40px; background:#1a2530; border:1px solid var(--line); border-radius:8px; padding:5px 10px; font-size:13px; color:var(--muted); line-height:1.25; }
+  .sb b { color:var(--text); font-size:14px; }
+  .lane { position:absolute; left:56px; width:1488px; display:flex; align-items:stretch; gap:10px; }
+  .lane .box { position:static; flex:1; }
+  .arr { color:var(--blue); font-size:22px; align-self:center; }
+  .mm .box { border-color:#3c4f63; }
+</style></head><body>
+<h1 class="abs" style="left:56px; top:34px; font-size:36px;">What I built</h1>
+<p class="abs" style="left:56px; top:82px; font-size:17px; color:var(--muted);">One LangGraph agent on top, the RAG pipeline that grounds it below. Everything runs on Supabase.</p>
+
+<p class="sec teal" style="top:128px;">Agent</p>
+<div class="box" style="left:56px; top:160px; width:190px; height:110px;"><h3>Patient</h3><p>Next.js portal: Ask, Appointments, Documents</p></div>
+<div class="box" style="left:285px; top:160px; width:255px; height:110px; border-color:#5a4330;"><h3>Safety check</h3><p>every message: rules → gpt-oss-20b → fallback rules</p></div>
+<div class="box" style="left:285px; top:305px; width:255px; height:120px; border-color:#5a4330;"><h3 class="orange">Escalate</h3><p>emergency → 911 · clinical or "a person" → nurse ticket; agent pauses, resumes after</p></div>
+<div class="box" style="left:580px; top:160px; width:330px; height:130px;"><h3>LangGraph agent</h3><p>gpt-oss-120b (Groq) · up to 4 tool calls · memory per conversation · answers only from tool results, with sources</p></div>
+<div class="box" style="left:580px; top:315px; width:330px; height:110px;"><h3>Instructions</h3><p><b style="color:var(--text)">Agent prompt:</b> role, rules, which tool for what, today's date. <b style="color:var(--text)">Safety prompt:</b> role, few-shot examples, JSON output</p></div>
+<div class="box" style="left:950px; top:160px; width:320px; height:265px;">
+  <h3>8 read-only tools</h3>
+  <p class="grp">Database lookups</p>
+  <div class="tool">get_my_appointments · find_open_times<br>get_my_documents · get_lab_results<br>list_my_records</div>
+  <p class="grp">RAG search</p>
+  <div class="tool">search_my_records<br>search_hospital_policies<br>check_my_coverage</div>
+  <p style="margin-top:8px;" class="teal">patient_id comes from the login, never the model</p>
+</div>
+<div class="abs" style="left:1300px; top:160px; width:244px; height:265px; background:#111920; border:1px solid #26313b; border-radius:12px;"></div>
+<p class="abs" style="left:1312px; top:168px; font-size:18px; font-weight:650;">Supabase</p>
+<div class="sb" style="top:198px;"><b>Auth</b> login → patient_id</div>
+<div class="sb" style="top:243px;"><b>Postgres</b> visits, slots, chats</div>
+<div class="sb" style="top:288px; border-color:#2f5a52;"><b>pgvector</b> searchable chunks</div>
+<div class="sb" style="top:333px;"><b>Storage</b> insurance card photos</div>
+<div class="sb" style="top:378px;"><b>Realtime</b> live nurse chat</div>
+
+<p class="sec" style="top:448px; color:var(--blue);">Multimodal: insurance card</p>
+<div class="lane mm" style="top:474px;">
+  <div class="box"><h3>Card photo</h3><p>uploaded to Storage</p></div><span class="arr">→</span>
+  <div class="box"><h3>Vision model</h3><p>qwen3.8-27b reads the fields; blank if unsure, never a guess</p></div><span class="arr">→</span>
+  <div class="box"><h3>Patient confirms</h3><p>can fix any field</p></div><span class="arr">→</span>
+  <div class="box"><h3>Network check</h3><p>plain code: in, out, or not on file</p></div><span class="arr">→</span>
+  <div class="box"><h3>Payer saved</h3><p>check_my_coverage searches only that plan</p></div>
+</div>
+
+<div class="abs" style="left:56px; top:582px; width:1488px; border-top:1px solid #26313b;"></div>
+<p class="sec teal" style="top:600px;">RAG pipeline</p>
+<p class="lbl" style="left:56px; top:628px;">INGEST · once, re-run only re-embeds changed chunks</p>
+<div class="lane" style="top:650px;">
+  <div class="box"><h3>Sources</h3><p>Synthea FHIR bundles · 8 hospital policies · 5 insurance plans</p></div><span class="arr">→</span>
+  <div class="box"><h3>Chunk</h3><p>FHIR: one per event, last 3 years, sensitive left out · Docs: by heading, ~300 words</p></div><span class="arr">→</span>
+  <div class="box"><h3>Embed</h3><p>bge-small-en-v1.5, 384 dims, runs locally</p></div><span class="arr">→</span>
+  <div class="box" style="border-color:#2f5a52;"><h3>pgvector</h3><p>4,209 record · 48 policy · 33 plan chunks, tagged by patient or insurer</p></div>
+</div>
+<p class="lbl" style="left:56px; top:770px;">QUERY · on each RAG tool call</p>
+<div class="lane" style="top:792px;">
+  <div class="box"><h3>Question</h3><p>embedded with bge's query prefix</p></div><span class="arr">→</span>
+  <div class="box"><h3>Filter first</h3><p>this patient, or this insurer; never sensitive</p></div><span class="arr">→</span>
+  <div class="box"><h3>Exact vector search</h3><p>25 nearest chunks; small enough that no index is needed</p></div><span class="arr">→</span>
+  <div class="box"><h3>Rerank</h3><p>bge-reranker-base cross-encoder keeps the best 5</p></div><span class="arr">→</span>
+  <div class="box" style="border-color:#2f5a52;"><h3>To the agent</h3><p>answer cites these as sources</p></div>
+</div>
+
+<svg class="abs" style="left:0; top:0;" width="1600" height="1000">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7fb3e6"/></marker>
+        <marker id="o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#e39b5c"/></marker></defs>
+  <g fill="none" stroke="#7fb3e6" stroke-width="2">
+    <path d="M248,215 L282,215" marker-end="url(#a)"/>
+    <path d="M542,215 L577,215" marker-end="url(#a)"/>
+    <path d="M912,205 L947,205" marker-end="url(#a)"/>
+    <path d="M947,250 L912,250" marker-end="url(#a)"/>
+    <path d="M745,313 L745,293" marker-end="url(#a)"/>
+    <path d="M1272,300 L1297,300" marker-end="url(#a)"/>
+  </g>
+  <path d="M412,272 L412,302" stroke="#e39b5c" stroke-width="2" fill="none" marker-end="url(#o)"/>
+</svg>
+<p class="lbl" style="left:551px; top:192px; color:var(--teal);">ok</p>
+</body></html>
