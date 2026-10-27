@@ -115,6 +115,24 @@ def test_confirm_needs_a_payer_and_your_own_row(client, card, make: Factory, fak
     assert client.post(url, headers=as_patient(make.patient()), json={"payer": "Riverbend"}).status_code == 404
 
 
+def test_deleting_the_card_deletes_its_insurance(client, db, card, make: Factory, fake_llm: FakeLLM) -> None:
+    fake_llm.replies["vision"] = reading(payer="Riverbend Health", member_name="Test Patient0")
+    read = extract(client, card).json()
+    headers = as_patient(card["patient"])
+    assert client.post(f"/me/insurance/{read['id']}/confirm", headers=headers,
+                       json={"payer": "Riverbend Health"}).status_code == 200
+    other = make.patient()  # same card file name, different patient: untouched
+    other_card = {"patient": other, "doc": upload(client, other, "card.png", (CARDS / "aja.png").read_bytes())}
+    assert extract(client, other_card).status_code == 200
+
+    assert client.delete(f"/me/documents/{card['doc']}", headers=headers).status_code == 204
+
+    assert client.get("/me/insurance", headers=headers).json() is None
+    left = db.execute("select patient_id from public.patient_insurance where patient_id in (%s, %s)",
+                      (card["patient"], other)).fetchall()
+    assert [r["patient_id"] for r in left] == [other]
+
+
 def test_no_insurance_yet_is_null(client, make: Factory) -> None:
     patient = make.patient()
     assert client.get("/me/insurance", headers=as_patient(patient)).json() is None

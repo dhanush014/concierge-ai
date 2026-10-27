@@ -100,6 +100,11 @@ def delete_document(conn: Conn, patient_id: PatientId, document_id: UUID) -> Res
     ).fetchone()
     if row is None:
         raise NOT_FOUND
+    # The insurance read from this card goes with it, confirmed or not.
+    conn.execute(
+        "delete from public.patient_insurance where patient_id = %s and card_path = %s",
+        (patient_id, row["storage_path"]),
+    )
     try:
         storage.remove(row["storage_path"])
     except storage.StorageError:

@@ -114,6 +114,7 @@ export function DocumentsView() {
       setTarget(null);
       opener.current = null; // its row may be gone; focus goes to the message
       docs.reload();
+      insurance.reload(); // deleting a card deletes the insurance read from it
     }
   }
 
