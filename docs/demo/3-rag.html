@@ -1,0 +1,75 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Concierge AI: RAG pipeline</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { padding:0; }
+  .box { position:absolute; }
+  .box h3 { font-size:20px; } .box p { font-size:15px; margin-top:5px; }
+  .sec { position:absolute; left:60px; font-size:14px; letter-spacing:2px; font-weight:650; text-transform:uppercase; }
+  .sec span { color:var(--muted); letter-spacing:0; text-transform:none; font-weight:400; }
+  .lbl { position:absolute; font-size:14px; color:var(--muted); }
+  .strat { margin-top:12px; } .strat b { font-size:16px; }
+  .ex { font-family:"SF Mono",Menlo,monospace; font-size:12.5px; color:var(--teal); margin-top:5px; line-height:1.4; }
+  .row { margin-top:9px; padding:9px 12px; background:#1a2530; border:1px solid var(--line); border-radius:8px; }
+  .row b { font-size:17px; } .row p { font-size:13px; margin-top:1px; }
+  .q { top:592px; width:210px; height:150px; }
+</style></head><body>
+<h1 class="abs" style="left:60px; top:40px; font-size:38px;">RAG pipeline</h1>
+<p class="abs" style="left:60px; top:92px; font-size:18px; color:var(--muted);">Three kinds of documents, one search. Every answer is grounded in chunks the patient is allowed to see.</p>
+
+<p class="sec teal" style="top:145px;">Ingest <span>· once; a re-run only re-embeds chunks that changed</span></p>
+<div class="box" style="left:60px; top:178px; width:290px; height:96px; border-color:#2f5a52;"><h3 class="teal">Synthea FHIR records</h3><p>20 patients · labs, meds, visits, allergies</p></div>
+<div class="box" style="left:60px; top:288px; width:290px; height:96px; border-color:#3c4f63;"><h3 class="blue">Hospital policies</h3><p>8 docs · parking, fasting, billing…</p></div>
+<div class="box" style="left:60px; top:398px; width:290px; height:96px; border-color:#5a4330;"><h3 class="orange">Insurance plans</h3><p>5 insurers · copays, coverage, prior auth</p></div>
+
+<div class="box" style="left:430px; top:178px; width:400px; height:316px;">
+  <h3>Chunk</h3>
+  <div class="strat"><b class="teal">FHIR: one chunk per clinical event</b>
+    <p>last 3 years, plus anything ongoing · sensitive records left out</p>
+    <div class="ex">"Lab result, 2024-11-04: Hemoglobin<br>[Mass/volume] in Blood: 16.59 g/dL"</div></div>
+  <div class="strat"><b class="blue">Policies</b> <b style="color:var(--muted)">+</b> <b class="orange">plans: split by heading</b>
+    <p>long sections → ~300-word windows, 40-word overlap · heading path kept in each chunk</p>
+    <div class="ex">"Parking &gt; Validation: …"</div></div>
+</div>
+
+<div class="box" style="left:910px; top:250px; width:250px; height:172px;">
+  <h3>Embed</h3><p>bge-small-en-v1.5</p><p>384 dimensions</p><p>runs locally, free</p></div>
+
+<div class="box" style="left:1240px; top:178px; width:300px; height:316px; border-color:#2f5a52;">
+  <h3>pgvector <span style="color:var(--muted); font-weight:400; font-size:15px;">in Supabase</span></h3>
+  <div class="row"><b class="teal">4,209</b> <b>record chunks</b><p>tagged with patient_id</p></div>
+  <div class="row"><b class="blue">48</b> <b>policy chunks</b><p>shared by everyone</p></div>
+  <div class="row"><b class="orange">33</b> <b>plan chunks</b><p>tagged with insurer</p></div>
+</div>
+
+<div class="abs" style="left:60px; top:530px; width:1480px; border-top:1px solid #26313b;"></div>
+<p class="sec teal" style="top:552px;">Query <span>· on every search tool call</span></p>
+<div class="box q" style="left:60px;"><h3>Question</h3><p>"Is a ride to my visit covered?"</p></div>
+<div class="box q" style="left:314px;"><h3>Embed</h3><p>same bge-small model, with its query prefix</p></div>
+<div class="box q" style="left:568px; border-color:#5a4330;"><h3>Filter first</h3><p>only this patient's records or this insurer's plan; never sensitive</p></div>
+<div class="box q" style="left:822px; border-color:#2f5a52;"><h3>Exact search</h3><p>25 nearest chunks; few enough rows that no index is needed</p></div>
+<div class="box q" style="left:1076px;"><h3>Rerank</h3><p>bge-reranker-base cross-encoder scores each chunk, keeps the best 5</p></div>
+<div class="box q" style="left:1330px; border-color:#2f5a52;"><h3 class="teal">Agent answers</h3><p>with citations: sources listed under the reply</p></div>
+
+<svg class="abs" style="left:0; top:0;" width="1600" height="900">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7fb3e6"/></marker></defs>
+  <g fill="none" stroke="#7fb3e6" stroke-width="2">
+    <path d="M352,226 L427,226" marker-end="url(#a)"/>
+    <path d="M352,336 L427,336" marker-end="url(#a)"/>
+    <path d="M352,446 L427,446" marker-end="url(#a)"/>
+    <path d="M832,336 L907,336" marker-end="url(#a)"/>
+    <path d="M1162,336 L1237,336" marker-end="url(#a)"/>
+    <path d="M272,667 L311,667" marker-end="url(#a)"/>
+    <path d="M526,667 L565,667" marker-end="url(#a)"/>
+    <path d="M780,667 L819,667" marker-end="url(#a)"/>
+    <path d="M1034,667 L1073,667" marker-end="url(#a)"/>
+    <path d="M1288,667 L1327,667" marker-end="url(#a)"/>
+    <path d="M1390,496 L1390,545 L927,545 L927,589" marker-end="url(#a)" stroke-dasharray="6 5"/>
+  </g>
+</svg>
+<p class="lbl" style="left:1000px; top:551px;">searches here</p>
+
+<div class="abs" style="left:60px; top:780px; width:1480px; display:flex; gap:48px; font-size:15px; color:var(--muted); line-height:1.5;">
+  <span style="flex:1"><b class="orange">Filter before search:</b> the patient id comes from the login, so a question can never pull another patient's records.</span>
+  <span style="flex:1"><b class="teal">Exact search, no index:</b> after filtering it's ~100–300 rows, compared in well under a millisecond, and nothing gets dropped.</span>
+</div>
+</body></html>
