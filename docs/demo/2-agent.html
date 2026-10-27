@@ -1,0 +1,87 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Concierge AI: the agent</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body { padding:0; }
+  .box { position:absolute; }
+  .box h3 { font-size:21px; } .box p { font-size:16px; }
+  .tool { font-family:"SF Mono",Menlo,monospace; font-size:15px; line-height:1.75; color:var(--text); }
+  .grp { font-size:12px; letter-spacing:1.5px; text-transform:uppercase; color:var(--muted); margin-top:12px; }
+  .sb { position:absolute; left:1290px; width:210px; height:62px; background:#1a2530; border:1px solid var(--line); border-radius:9px; padding:8px 12px; }
+  .sb b { font-size:16px; } .sb p { font-size:13px; color:var(--muted); margin-top:2px; }
+  .lbl { position:absolute; font-size:14px; color:var(--muted); }
+  .vert { position:absolute; writing-mode:vertical-rl; font-size:12px; letter-spacing:1.5px; font-weight:650; text-transform:uppercase; }
+  .ag li { font-size:17px; margin-bottom:10px; }
+</style></head><body>
+<h1 class="abs" style="left:60px; top:40px; font-size:38px;">What I built</h1>
+<p class="abs" style="left:60px; top:92px; font-size:18px; color:var(--muted);">One agent in the middle: models on top, tools to the right, Supabase behind everything.</p>
+
+<div class="box" style="left:440px; top:150px; width:420px; height:150px;">
+  <h3>Models <span style="color:var(--muted); font-weight:400; font-size:16px;">on Groq</span></h3>
+  <p style="margin-top:10px;"><b style="color:var(--text)">gpt-oss-20b</b> · safety check</p>
+  <p><b style="color:var(--text)">gpt-oss-120b</b> · picks tools, writes answers</p>
+  <p><b class="blue">qwen3.8-27b</b> · reads card photos</p>
+</div>
+
+<div class="box" style="left:60px; top:365px; width:250px; height:100px;"><h3>Patient message</h3><p>typed in the portal chat</p></div>
+<div class="box" style="left:60px; top:565px; width:250px; height:100px; border-color:#3c4f63;"><h3 class="blue">Insurance card photo</h3><p>uploaded on Documents</p></div>
+
+<div class="box ag" style="left:440px; top:365px; width:420px; height:300px; border-color:#2f5a52;">
+  <h3 style="font-size:24px;">Concierge AI</h3>
+  <p style="margin-bottom:16px;">FastAPI backend + LangGraph agent</p>
+  <ul>
+    <li>Safety check on every message</li>
+    <li>Text → agent · photo → vision model</li>
+    <li>Up to 4 tool calls, answers with sources</li>
+    <li>Follows my prompts: agent + safety</li>
+  </ul>
+</div>
+
+<div class="box" style="left:960px; top:285px; width:270px; height:360px;">
+  <h3>8 read-only tools</h3>
+  <p class="grp">Look up</p>
+  <div class="tool">get_my_appointments<br>find_open_times<br>get_my_documents<br>get_lab_results<br>list_my_records</div>
+  <p class="grp">Search (RAG)</p>
+  <div class="tool">search_my_records<br>search_hospital_policies<br>check_my_coverage</div>
+</div>
+
+<div class="abs" style="left:1278px; top:215px; width:234px; height:490px; background:#111920; border:1px solid #26313b; border-radius:12px;"></div>
+<p class="abs" style="left:1290px; top:226px; font-size:21px; font-weight:650;">Supabase</p>
+<div class="sb" style="top:265px;"><b>Auth</b><p>login → patient_id</p></div>
+<div class="sb" style="top:337px;"><b>Postgres</b><p>patients, visits, slots</p></div>
+<div class="sb" style="top:409px; border-color:#2f5a52;"><b>pgvector</b><p>records, policies, plans</p></div>
+<div class="sb" style="top:481px;"><b>Storage</b><p>card photos</p></div>
+<div class="sb" style="top:553px; border-color:#4b3f7a;"><b>Chat memory</b><p>LangGraph checkpointer</p></div>
+<div class="sb" style="top:625px;"><b>Realtime</b><p>live nurse chat</p></div>
+
+<svg class="abs" style="left:0; top:0;" width="1600" height="900">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#7fb3e6"/></marker></defs>
+  <g fill="none" stroke="#7fb3e6" stroke-width="2">
+    <path d="M312,405 L437,405" marker-end="url(#a)"/>
+    <path d="M437,435 L312,435" marker-end="url(#a)"/>
+    <path d="M312,605 L437,605" marker-end="url(#a)"/>
+    <path d="M437,635 L312,635" marker-end="url(#a)"/>
+    <path d="M650,362 L650,303" marker-end="url(#a)" marker-start="url(#a)"/>
+    <path d="M862,465 L957,465" marker-end="url(#a)" marker-start="url(#a)"/>
+    <path d="M1232,465 L1275,465" marker-end="url(#a)"/>
+    <path d="M650,667 L650,770 L1395,770 L1395,708" marker-end="url(#a)" stroke-dasharray="6 5"/>
+  </g>
+  <g fill="none" stroke-width="2">
+    <path d="M1508,340 L1518,340 L1518,542 L1508,542" stroke="#7fd1c2"/>
+    <path d="M1508,556 L1518,556 L1518,612 L1508,612" stroke="#b7a6f2"/>
+  </g>
+</svg>
+<p class="lbl" style="left:330px; top:380px;">question</p>
+<p class="lbl" style="left:318px; top:442px;">answer + sources</p>
+<p class="lbl" style="left:330px; top:580px;">photo</p>
+<p class="lbl" style="left:318px; top:642px;">fields to confirm</p>
+<p class="lbl" style="left:662px; top:320px;">routes by input</p>
+<p class="lbl" style="left:1238px; top:440px;">read</p>
+<p class="lbl" style="left:900px; top:778px;">saves and reloads the conversation</p>
+<p class="vert teal" style="left:1524px; top:372px;">Long-term</p>
+<p class="vert purple" style="left:1524px; top:548px; font-size:10px;">Short-term</p>
+
+<div class="abs" style="left:60px; top:820px; display:flex; gap:40px; font-size:15px; color:var(--muted);">
+  <span><b class="teal">Long-term context:</b> the patient's record, visits and insurance, fetched by tools</span>
+  <span><b class="purple">Short-term context:</b> this conversation, saved after every turn</span>
+</div>
+</body></html>
